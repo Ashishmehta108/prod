@@ -1,0 +1,136 @@
+{
+  "name": "factory-inventory-desktop",
+  "version": "1.0.0",
+  "description": "Factory Inventory Management Desktop Application",
+  "author": "RVL Polytechltd",
+  "main": "dist/main/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:main\" \"npm:dev:preload\" \"npm:dev:renderer\" \"npm:dev:server\" \"npm:dev:electron\"",
+    "dev:main": "esbuild src/main/main.ts --bundle --platform=node --external:electron --outfile=dist/main/main.js --watch --log-level=error",
+    "dev:preload": "esbuild src/main/preload.ts --bundle --platform=node --external:electron --outfile=dist/main/preload.js --watch --log-level=error",
+    "dev:renderer": "vite --config vite.config.mts",
+    "dev:server": "ts-node-dev --respawn --transpile-only src/server/index.ts",
+    "dev:electron": "wait-on tcp:5173 && wait-on file:dist/main/main.js && wait-on file:dist/main/preload.js && npx electron dist/main/main.js",
+    "build:renderer": "vite build --config vite.config.mts",
+    "build:main": "esbuild src/main/main.ts --bundle --platform=node --external:electron --outfile=dist/main/main.js",
+    "build:preload": "esbuild src/main/preload.ts --bundle --platform=node --external:electron --outfile=dist/main/preload.js",
+    "build:server": "esbuild src/server/index.ts --bundle --platform=node --outfile=dist/server/index.js --external:serialport --external:@serialport/bindings-cpp",
+    "build": "npm run build:renderer && npm run build:main && npm run build:preload && npm run build:server",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "create-admin": "ts-node src/server/scripts/createAdmin.ts",
+    "seed-stock": "ts-node src/server/scripts/seedStock.ts",
+    "seed-products": "ts-node src/server/scripts/seedProducts.ts",
+    "test-print": "ts-node src/server/scripts/testPrint.ts",
+    "lint": "echo \"no lint configured\""
+  },
+  "build": {
+    "appId": "com.rvlpolytechltd.factory-inventory",
+    "productName": "Factory Inventory",
+    "copyright": "Copyright © 2026 RVL Polytechltd",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "!node_modules/.cache"
+    ],
+    "extraResources": [
+      {
+        "from": "upload",
+        "to": "upload",
+        "filter": [
+          "**/*"
+        ]
+      },
+      ".env"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Factory Inventory"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "npmRebuild": false,
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/serialport/**/*",
+      "node_modules/@serialport/**/*"
+    ]
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react-router-dom": "^5.3.3",
+    "@types/serialport": "^8.0.5",
+    "axios": "^1.7.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "electron-is-dev": "^3.0.1",
+    "express": "^4.19.2",
+    "framer-motion": "^12.23.24",
+    "iconsax-react": "^0.0.8",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.554.0",
+    "mongoose": "^8.3.5",
+    "multer": "^2.0.2",
+    "prisma": "^7.2.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.12.0",
+    "serialport": "^13.0.0",
+    "sonner": "^2.0.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react-swc": "^3.7.0",
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^8.2.0",
+    "electron": "^32.3.3",
+    "electron-builder": "^26.4.0",
+    "esbuild": "^0.27.0",
+    "png-to-ico": "^3.0.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0",
+    "wait-on": "^7.2.0"
+  }
+}

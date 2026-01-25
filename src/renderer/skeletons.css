@@ -1,0 +1,92 @@
+/* skeleton.css – enhanced high-performance skeleton with smooth diagonal shimmer */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+
+  /* Neutral light gray */
+  background-color: #f1f3f5;
+  border-radius: 0.5rem;
+  
+  /* Performance optimization */
+  will-change: transform;
+}
+
+/* Dark mode – muted, professional */
+.dark .skeleton {
+  background-color: #1f2933;
+}
+
+/* Enhanced diagonal shimmer with smoother gradient */
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  /* Start off-screen with optimized transform */
+  transform: translateX(-150%) skewX(-20deg);
+
+  /* Wider, smoother gradient for more polished effect */
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 65%,
+    transparent 100%
+  );
+
+  /* Faster, smoother animation with hardware acceleration */
+  animation: skeleton-shimmer-diagonal 1.2s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+  
+  /* Enable GPU acceleration for buttery smooth performance */
+  will-change: transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Dark mode shimmer – subtle but visible */
+.dark .skeleton::after {
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.12) 50%,
+    transparent 65%,
+    transparent 100%
+  );
+}
+
+/* Optimized keyframes with smooth easing */
+@keyframes skeleton-shimmer-diagonal {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(150%) skewX(-20deg);
+  }
+}
+
+/* Optional: Pulsing variant for variety */
+.skeleton.pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Optional: Faster shimmer for small elements */
+.skeleton.fast::after {
+  animation-duration: 0.9s;
+}
+
+/* Optional: Slower, more subtle shimmer */
+.skeleton.slow::after {
+  animation-duration: 2s;
+}
