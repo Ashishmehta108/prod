@@ -235,8 +235,6 @@ const StockSummary: React.FC = () => {
             <span className="text-neutral-400">/</span>
             <span className="text-neutral-600 font-medium">Stock Summary</span>
           </nav>
-
-          {/* Header Section */}
           <div className="flex items-start justify-between">
             <div className="space-y-2">
               <h1 className="text-[28px] font-semibold text-neutral-900 tracking-tight leading-none">
@@ -257,12 +255,10 @@ const StockSummary: React.FC = () => {
               </button>
             )}
           </div>
-
-          {/* Filters Bar */}
           <div className="bg-white rounded-xl border border-neutral-200/80 shadow-sm p-6">
             <form onSubmit={handleApplyFilter} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* From Date */}
+     
                 <div>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wider mb-2">
                     <Calendar size={12} className="text-neutral-400" variant="Outline" />
