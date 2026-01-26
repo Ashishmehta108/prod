@@ -23,6 +23,8 @@ import TallySync from "./pages/tally/TallySync";
 import TallyVouchers from "./pages/tally/TallyVouchers";
 import TallySettings from "./pages/tally/TallySettings";
 import WeightHistory from "./pages/WeightHistory";
+import LowStockProducts from "./pages/LowStockProducts";
+import StockSummary from "./pages/StockSummary";
 import { Toaster } from "sonner";
 
 const AppContent: React.FC = () => {
@@ -46,6 +48,8 @@ const AppContent: React.FC = () => {
     if (pathname === "/tally/vouchers") return "tally-vouchers";
     if (pathname === "/tally/settings") return "tally-settings";
     if (pathname === "/user") return "user";
+    if (pathname === "/low-stock") return "low-stock";
+    if (pathname === "/stock-summary") return "stock-summary";
     return "dashboard";
   };
 
@@ -64,6 +68,8 @@ const AppContent: React.FC = () => {
       "tally-vouchers": "/tally/vouchers",
       "tally-settings": "/tally/settings",
       user: "/user",
+      "low-stock": "/low-stock",
+      "stock-summary": "/stock-summary",
     };
     navigate(routes[page] || "/");
   };
@@ -100,6 +106,8 @@ const AppContent: React.FC = () => {
           <Route path="/tally/vouchers" element={<TallyVouchers />} />
           <Route path="/tally/settings" element={<TallySettings />} />
           <Route path="/user" element={<UsersPage />} />
+          <Route path="/low-stock" element={<LowStockProducts />} />
+          <Route path="/stock-summary" element={<StockSummary />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

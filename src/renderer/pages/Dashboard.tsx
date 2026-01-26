@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Box, Warning2, Home } from "iconsax-react";
 import { api } from "@renderer/api/client";
 import StockStatus from "@renderer/components/StockPaginated";
@@ -8,6 +9,7 @@ import {
 import { DashboardGridSkeleton } from "../components/Skeleton";
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -134,7 +136,10 @@ const Dashboard: React.FC = () => {
           {/* Low Stock Card */}
           <div
             className="group relative overflow-hidden bg-white rounded-2xl border border-neutral-200/80 p-7 cursor-pointer transition-all duration-300 hover:shadow-md hover:shadow-amber-100/50 hover:border-amber-200 hover:bg-amber-50/20"
-            onClick={handleRipple}
+            onClick={(e) => {
+              handleRipple(e);
+              navigate("/low-stock");
+            }}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1 space-y-6">

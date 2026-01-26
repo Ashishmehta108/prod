@@ -54,6 +54,7 @@ const allItems: SidebarItem[] = [
     children: [
       { id: "stock-in", label: "Stock In", icon: ArrowDown },
       { id: "stock-out", label: "Stock Out", icon: ArrowUp },
+      { id: "stock-summary", label: "Stock Summary", icon: ClipboardText },
     ],
   },
   { id: "weight", label: "Weight Entry", icon: Weight },

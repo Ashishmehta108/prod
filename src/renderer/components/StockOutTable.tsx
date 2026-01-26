@@ -14,6 +14,7 @@ interface StockOutItem {
     issuedTo?: string;
     purpose?: string;
     quantity: number;
+    remainingStock?: number;
 }
 
 interface Pagination {
@@ -30,6 +31,7 @@ const StockOutTable = ({ productId, unit }: Props) => {
     const [pagination, setPagination] = useState<Pagination | null>(null);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [currentStock, setCurrentStock] = useState<number | null>(null);
 
     // Filter states
     const [search, setSearch] = useState("");
@@ -43,8 +45,22 @@ const StockOutTable = ({ productId, unit }: Props) => {
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
     useEffect(() => {
+        fetchCurrentStock();
+    }, [productId]);
+
+    useEffect(() => {
         fetchStockOut();
-    }, [productId, page, sortBy, sortOrder]);
+    }, [productId, page, sortBy, sortOrder, currentStock]);
+
+    const fetchCurrentStock = async () => {
+        try {
+            const res = await api.get(`/products/${productId}`);
+            setCurrentStock(res.data.currentStock || 0);
+        } catch (error) {
+            console.error("Failed to fetch current stock:", error);
+            setCurrentStock(null);
+        }
+    };
 
     const fetchStockOut = async () => {
         setLoading(true);
@@ -60,7 +76,33 @@ const StockOutTable = ({ productId, unit }: Props) => {
             if (endDate) params.endDate = endDate;
 
             const res = await api.get(`/products/${productId}/stock-out`, { params });
-            setItems(res.data.items);
+            const fetchedItems = res.data.items || [];
+            
+            // Calculate remaining stock for each item
+            if (currentStock !== null) {
+                // Items are already sorted by the backend
+                // For DESC order (newest first): 
+                // - First item is newest, remaining stock = currentStock (after this transaction)
+                // - Second item: remaining = currentStock + firstItem.quantity
+                // - etc.
+                let accumulatedQuantity = 0;
+                const itemsWithStock = fetchedItems.map((item: StockOutItem) => {
+                    // Calculate remaining stock after this transaction
+                    const remainingStock = currentStock + accumulatedQuantity;
+                    // Accumulate this item's quantity for next items (which are older)
+                    accumulatedQuantity += item.quantity;
+                    
+                    return {
+                        ...item,
+                        remainingStock,
+                    };
+                });
+                
+                setItems(itemsWithStock);
+            } else {
+                setItems(fetchedItems);
+            }
+            
             setPagination(res.data.pagination);
         } catch (error) {
             console.error("Failed to fetch stock-out records:", error);
@@ -222,18 +264,19 @@ const StockOutTable = ({ productId, unit }: Props) => {
                             >
                                 Quantity <SortIcon field="quantity" />
                             </th>
+                            <th className="px-4 py-2 text-left">Remaining Stock</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                                     Loading...
                                 </td>
                             </tr>
                         ) : items.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                                     No stock-out records found
                                 </td>
                             </tr>
@@ -250,6 +293,15 @@ const StockOutTable = ({ productId, unit }: Props) => {
                                     <td className="px-4 py-2">{item.purpose || "-"}</td>
                                     <td className="px-4 py-2 text-red-600 font-semibold">
                                         -{item.quantity} {unit}
+                                    </td>
+                                    <td className="px-4 py-2">
+                                        {item.remainingStock !== undefined ? (
+                                            <span className="px-2 py-1 rounded bg-green-50 text-green-700 text-xs font-semibold border border-green-200">
+                                                {item.remainingStock} {unit}
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-400">-</span>
+                                        )}
                                     </td>
                                 </tr>
                             ))

@@ -9,17 +9,20 @@ import { ProductSearchModal } from "../components/ProductSearchModal";
 interface ProductOption {
   id: string;
   name: string;
+  unit?: string;
+  currentStock?: number;
 }
 
 interface StockOutRecord {
   _id: string;
-  productId: { _id: string; name: string; image?: string };
+  productId: { _id: string; name: string; image?: string; unit?: string };
   quantity: number;
   department?: string;
   issuedBy?: string;
   issuedTo?: string;
   purpose?: string;
   date: string;
+  remainingStock?: number;
 }
 
 interface StockOutForm {
@@ -65,6 +68,8 @@ const StockOut: React.FC = () => {
     issuedTo: "",
     purpose: "",
   });
+  const [selectedProductStock, setSelectedProductStock] = useState<number | null>(null);
+  const [selectedProductUnit, setSelectedProductUnit] = useState<string>("");
 
   const load = async () => {
     try {
@@ -83,10 +88,81 @@ const StockOut: React.FC = () => {
         }),
         api.get("/stock-out/departments")
       ]);
-      setProducts(prodRes.data.data || prodRes.data);
-      setRecords(recRes.data.data);
+      const productsData = prodRes.data.data || prodRes.data;
+      setProducts(productsData);
+      
+      const records = recRes.data.data || [];
+      
+      // Get unique product IDs from records
+      const productIds = records.map((r: StockOutRecord) => r.productId._id as string);
+      const uniqueProductIds = Array.from(new Set(productIds));
+      
+      // Fetch current stock for all unique products
+      const productStocks = await Promise.all(
+        uniqueProductIds.map(async (productId: string) => {
+          try {
+            const productRes = await api.get(`/products/${productId}`);
+            return {
+              productId,
+              currentStock: productRes.data.currentStock || 0,
+              unit: productRes.data.unit || "",
+            };
+          } catch (err) {
+            console.error(`Failed to fetch stock for product ${productId}:`, err);
+            return { productId, currentStock: 0, unit: "" };
+          }
+        })
+      );
+      
+      // Create a map for quick lookup
+      const stockMap = new Map(productStocks.map(ps => [ps.productId, ps]));
+      
+      // Group records by product and calculate remaining stock
+      const recordsByProduct = new Map<string, StockOutRecord[]>();
+      records.forEach((record: StockOutRecord) => {
+        const productId = record.productId._id;
+        if (!recordsByProduct.has(productId)) {
+          recordsByProduct.set(productId, []);
+        }
+        recordsByProduct.get(productId)!.push(record);
+      });
+      
+      // Calculate remaining stock for each record
+      // Records are sorted by date DESC (newest first), so we accumulate quantities
+      const recordsWithStock: StockOutRecord[] = [];
+      const accumulatedByProduct = new Map<string, number>();
+      
+      records.forEach((record: StockOutRecord) => {
+        const productId = record.productId._id;
+        const productStock = stockMap.get(productId);
+        
+        if (!productStock) {
+          recordsWithStock.push(record);
+          return;
+        }
+        
+        // Get accumulated quantity for this product (from newer transactions)
+        const accumulated = accumulatedByProduct.get(productId) || 0;
+        
+        // Calculate remaining stock after this transaction
+        const remainingStock = productStock.currentStock + accumulated;
+        
+        // Update accumulated quantity for next records (which are older)
+        accumulatedByProduct.set(productId, accumulated + record.quantity);
+        
+        recordsWithStock.push({
+          ...record,
+          remainingStock,
+          productId: {
+            ...record.productId,
+            unit: productStock.unit,
+          },
+        });
+      });
+      
+      setRecords(recordsWithStock);
       setTotalPages(recRes.data.meta?.totalPages || 1);
-      setTotalRecords(recRes.data.meta?.total || recRes.data.data.length);
+      setTotalRecords(recRes.data.meta?.total || records.length);
       setDepartments(depRes.data);
     } catch (err) {
       console.error(err);
@@ -110,8 +186,26 @@ const StockOut: React.FC = () => {
     load();
   }, [currentPage, itemsPerPage]);
 
-  const updateForm = (key: keyof StockOutForm, value: string) =>
+  const updateForm = (key: keyof StockOutForm, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
+    
+    // When product is selected, fetch its current stock
+    if (key === "productId" && value) {
+      api.get(`/products/${value}`)
+        .then((res) => {
+          setSelectedProductStock(res.data.currentStock || 0);
+          setSelectedProductUnit(res.data.unit || "");
+        })
+        .catch((err) => {
+          console.error("Failed to fetch product stock:", err);
+          setSelectedProductStock(null);
+          setSelectedProductUnit("");
+        });
+    } else if (key === "productId" && !value) {
+      setSelectedProductStock(null);
+      setSelectedProductUnit("");
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +233,8 @@ const StockOut: React.FC = () => {
           issuedTo: "",
           purpose: "",
         });
+        setSelectedProductStock(null);
+        setSelectedProductUnit("");
         load();
         return 'Stock out recorded successfully';
       },
@@ -358,6 +454,15 @@ const StockOut: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3 px-4">
+                          {r.remainingStock !== undefined ? (
+                            <span className="px-2 py-0.5 rounded bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
+                              {r.remainingStock} {r.productId?.unit || ""}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium text-erp-text-secondary">-</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
                           <span className="text-xs font-medium text-erp-text-secondary">{r.department || "-"}</span>
                         </td>
                         <td className="py-3 px-4">
@@ -492,6 +597,12 @@ const StockOut: React.FC = () => {
                     <SearchCode size={20} />
                   </button>
                 </div>
+                {selectedProductStock !== null && form.productId && (
+                  <div className="mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                    <span className="font-semibold text-blue-900">Remaining Stock: </span>
+                    <span className="text-blue-700">{selectedProductStock} {selectedProductUnit}</span>
+                  </div>
+                )}
               </div>
 
               {/* Quantity */}
