@@ -22,12 +22,8 @@ const StockSummary: React.FC = () => {
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [summaryData, setSummaryData] = useState<StockSummaryItem[]>([]);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  
-  // Filter state
   const [fromDate, setFromDate] = useState(() => {
     const date = new Date();
     date.setMonth(date.getMonth() - 1); // Default to last month
@@ -38,24 +34,18 @@ const StockSummary: React.FC = () => {
   });
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedProductName, setSelectedProductName] = useState<string>("");
-
-  // Calculate summary totals (from all data, not just current page)
   const totals = React.useMemo(() => {
     const totalStockIn = summaryData.reduce((sum, item) => sum + item.totalStockInInRange, 0);
     const totalStockOut = summaryData.reduce((sum, item) => sum + item.totalStockOutInRange, 0);
     const netMovement = totalStockIn - totalStockOut;
     return { totalStockIn, totalStockOut, netMovement };
   }, [summaryData]);
-
-  // Pagination calculations
   const totalPages = Math.ceil(summaryData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedData = useMemo(() => {
     return summaryData.slice(startIndex, endIndex);
   }, [summaryData, startIndex, endIndex]);
-
-  // Reset to page 1 when data changes
   useEffect(() => {
     setCurrentPage(1);
   }, [summaryData.length]);
@@ -227,7 +217,7 @@ const StockSummary: React.FC = () => {
     <>
       <div className="min-h-full bg-neutral-50/50 px-6 py-6 md:px-8 md:py-7">
         <div className="max-w-[1400px] mx-auto space-y-8">
-          {/* Breadcrumb Navigation */}
+      
           <nav className="flex items-center gap-2 text-xs">
             <Home
               size={14}
