@@ -19,7 +19,9 @@
     "build": "npm run build:renderer && npm run build:main && npm run build:preload && npm run build:server",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win",
+    "dist:win:nsis": "npm run build && electron-builder --win nsis",
+    "dist:win:portable": "npm run build && electron-builder --win portable",
+    "dist:win:both": "npm run build && electron-builder --win nsis portable",
     "create-admin": "ts-node src/server/scripts/createAdmin.ts",
     "seed-stock": "ts-node src/server/scripts/seedStock.ts",
     "seed-products": "ts-node src/server/scripts/seedProducts.ts",
@@ -28,7 +30,7 @@
   },
   "build": {
     "appId": "com.rvlpolytechltd.factory-inventory",
-    "productName": "Factory Inventory",
+    "productName": "RvlPolytech",
     "copyright": "Copyright © 2026 RVL Polytechltd",
     "directories": {
       "buildResources": "build",
@@ -40,29 +42,13 @@
       "!node_modules/.cache"
     ],
     "extraResources": [
-      {
-        "from": "upload",
-        "to": "upload",
-        "filter": [
-          "**/*"
-        ]
-      },
       ".env"
     ],
     "win": {
+      "icon": "build/icon.png",
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
+        "nsis",
+        "portable"
       ]
     },
     "nsis": {
@@ -73,9 +59,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Factory Inventory"
-    },
-    "portable": {
-      "artifactName": "${productName}-Portable-${version}.${ext}"
     },
     "npmRebuild": false,
     "asar": true,
@@ -122,7 +105,7 @@
     "autoprefixer": "^10.4.22",
     "concurrently": "^8.2.0",
     "electron": "^32.3.3",
-    "electron-builder": "^26.4.0",
+    "electron-builder": "^26.7.0",
     "esbuild": "^0.27.0",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.5.6",

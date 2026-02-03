@@ -19,7 +19,6 @@ import uploadRoutes from "./routes/upload";
 
 import { createAdmin as createAdminScript } from "./scripts/createAdmin";
 
-// Determine if we're in production (packaged app)
 const isProduction = process.env.NODE_ENV === "production";
 const RESOURCES_PATH = process.env.RESOURCES_PATH || process.cwd();
 
@@ -78,9 +77,10 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Setup upload directory
-const uploadPath = isProduction
-  ? path.join(RESOURCES_PATH, "upload", "images")
-  : path.resolve(process.cwd(), "upload", "images");
+const appName = "factory-inventory-desktop";
+const uploadPath = true
+  ? path.join(process.env.APPDATA || (process.platform === 'darwin' ? path.join(process.env.HOME || '', 'Library/Preferences') : path.join(process.env.HOME || '', '.local/share')), appName, 'upload', 'images')
+  : path.resolve(process.cwd(), 'upload', 'images');
 
 console.log(`[Server] Upload directory path: ${uploadPath}`);
 

@@ -7,8 +7,9 @@ const isProduction = process.env.NODE_ENV === "production";
 const RESOURCES_PATH = process.env.RESOURCES_PATH || process.cwd();
 
 // Use correct path based on environment
-const uploadDir = isProduction
-    ? path.join(RESOURCES_PATH, 'upload', 'images')
+const appName = "factory-inventory-desktop";
+const uploadDir = true
+    ? path.join(process.env.APPDATA || (process.platform === 'darwin' ? path.join(process.env.HOME || '', 'Library/Preferences') : path.join(process.env.HOME || '', '.local/share')), appName, 'upload', 'images')
     : path.resolve(process.cwd(), 'upload', 'images');
 
 console.log('[Upload Middleware] Environment:', isProduction ? 'production' : 'development');

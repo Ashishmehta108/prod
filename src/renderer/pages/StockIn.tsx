@@ -43,6 +43,8 @@ const StockIn: React.FC = () => {
   const [dataLoading, setDataLoading] = useState(true);
   const [locations, setLocations] = useState<string[]>([]);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [selectedProductStock, setSelectedProductStock] = useState<number | null>(null);
+  const [selectedProductUnit, setSelectedProductUnit] = useState<string>("");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,6 +116,28 @@ const StockIn: React.FC = () => {
 
   const updateForm = (key: keyof StockInForm, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const handleProductChange = (value: string) => {
+    updateForm("productId", value);
+
+    if (!value) {
+      setSelectedProductStock(null);
+      setSelectedProductUnit("");
+      return;
+    }
+
+    api
+      .get(`/products/${value}`)
+      .then((res) => {
+        setSelectedProductStock(res.data.currentStock ?? null);
+        setSelectedProductUnit(res.data.unit ?? "");
+      })
+      .catch((err) => {
+        console.error("Failed to fetch product stock:", err);
+        setSelectedProductStock(null);
+        setSelectedProductUnit("");
+      });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -487,7 +511,7 @@ const StockIn: React.FC = () => {
                     <select
                       className="flex-1 bg-erp-surface-muted border border-erp-border rounded px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:bg-erp-surface focus:border-erp-accent transition-colors"
                       value={form.productId}
-                      onChange={(e) => updateForm("productId", e.target.value)}
+                      onChange={(e) => handleProductChange(e.target.value)}
                       required
                     >
                       <option value="">Select a product</option>
@@ -506,6 +530,14 @@ const StockIn: React.FC = () => {
                       <SearchCode size={20} />
                     </button>
                   </div>
+                  {selectedProductStock !== null && form.productId && (
+                    <div className="mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                      <span className="font-semibold text-blue-900">Remaining Stock: </span>
+                      <span className="text-blue-700">
+                        {selectedProductStock} {selectedProductUnit}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quantity */}
@@ -617,7 +649,7 @@ const StockIn: React.FC = () => {
       <ProductSearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
-        onSelect={(id) => updateForm("productId", id)}
+        onSelect={(id) => handleProductChange(id)}
       />
     </>
   );
