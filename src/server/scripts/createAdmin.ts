@@ -3,7 +3,7 @@ import { User } from "../models/User";
 
 const ADMIN_EMAIL = "rvlpolytech@gmail.com";
 const ADMIN_PASSWORD = "rvlpolytech";
-const ADMIN_USERNAME = "ashishmehtawork108";
+const ADMIN_USERNAME = "rvlpolytech";
 
 export async function createAdmin() {
 

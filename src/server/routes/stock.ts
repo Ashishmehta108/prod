@@ -9,7 +9,7 @@ const router = Router();
 // GET /api/stock/summary
 router.get("/summary", async (req, res) => {
   try {
-    const { from, to, productId } = req.query;
+    const { from, to, productId, category } = req.query;
 
     // Validate date range
     if (!from || !to) {
@@ -43,6 +43,10 @@ router.get("/summary", async (req, res) => {
         return res.status(400).json({ error: "Invalid productId" });
       }
       productFilter._id = new mongoose.Types.ObjectId(productId as string);
+    }
+
+    if (category) {
+      productFilter.category = category;
     }
 
     // Get all products (or filtered product)
@@ -151,6 +155,7 @@ router.get("/summary", async (req, res) => {
       return {
         productId: productIdStr,
         productName: product.name,
+        image: product.image,
         unit: product.unit,
         totalStockInInRange,
         totalStockOutInRange,

@@ -1,5 +1,7 @@
 import { api } from "@renderer/api/client";
 import { useEffect, useState } from "react";
+import { formatFullDate as formatDateUtil } from "@renderer/utils/dateUtils";
+
 
 interface Props {
     productId: string;
@@ -77,7 +79,7 @@ const StockOutTable = ({ productId, unit }: Props) => {
 
             const res = await api.get(`/products/${productId}/stock-out`, { params });
             const fetchedItems = res.data.items || [];
-            
+
             // Calculate remaining stock for each item
             if (currentStock !== null) {
                 // Items are already sorted by the backend
@@ -91,18 +93,18 @@ const StockOutTable = ({ productId, unit }: Props) => {
                     const remainingStock = currentStock + accumulatedQuantity;
                     // Accumulate this item's quantity for next items (which are older)
                     accumulatedQuantity += item.quantity;
-                    
+
                     return {
                         ...item,
                         remainingStock,
                     };
                 });
-                
+
                 setItems(itemsWithStock);
             } else {
                 setItems(fetchedItems);
             }
-            
+
             setPagination(res.data.pagination);
         } catch (error) {
             console.error("Failed to fetch stock-out records:", error);
@@ -119,11 +121,7 @@ const StockOutTable = ({ productId, unit }: Props) => {
 
 
     const formatFullDate = (date: string) => {
-        return new Date(date).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        });
+        return formatDateUtil(date);
     };
     const handleClearFilters = () => {
         setSearch("");

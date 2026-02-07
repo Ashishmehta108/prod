@@ -14,6 +14,7 @@ const ProductsList = () => {
     const isAdmin = user?.role?.toLowerCase() === "admin" || user?.role?.toLowerCase() === "superadmin";
 
     const [products, setProducts] = useState<ProductListItem[]>([]);
+    const [categories, setCategories] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -56,6 +57,7 @@ const ProductsList = () => {
     useEffect(() => {
         const container = document.querySelector(".max-h-\\[540px\\]");
         container?.scrollTo({ top: 0, behavior: "smooth" });
+        fetchCategories();
     }, [page]);
 
 
@@ -97,6 +99,15 @@ const ProductsList = () => {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const res = await api.get("/categories");
+            setCategories(res.data.map((c: any) => c.name));
+        } catch (err) {
+            console.error("Failed to fetch categories:", err);
         }
     };
 
@@ -306,8 +317,9 @@ const ProductsList = () => {
                                 className={selectBase}
                             >
                                 <option value="">All Categories</option>
-                                <option value="Hardware">Hardware</option>
-                                <option value="Electrical">Electrical</option>
+                                {categories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -493,7 +505,16 @@ const ProductsList = () => {
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Category</label>
-                                    <input value={editForm.category} onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))} className={inputBase} />
+                                    <select
+                                        value={editForm.category}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
+                                        className={selectBase}
+                                    >
+                                        <option value="">Select Category</option>
+                                        {categories.map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Unit</label>

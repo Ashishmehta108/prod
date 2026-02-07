@@ -25,6 +25,9 @@ import TallySettings from "./pages/tally/TallySettings";
 import WeightHistory from "./pages/WeightHistory";
 import LowStockProducts from "./pages/LowStockProducts";
 import StockSummary from "./pages/StockSummary";
+import StockInRecords from "./pages/StockInRecords";
+import StockOutRecords from "./pages/StockOutRecords";
+import Categories from "./pages/Categories";
 import { Toaster } from "sonner";
 
 const AppContent: React.FC = () => {
@@ -40,6 +43,7 @@ const AppContent: React.FC = () => {
     }
     if (pathname === "/products") return "products-all";
     if (pathname === "/products/add") return "products-add";
+    if (pathname === "/products/categories") return "products-categories";
     if (pathname === "/stock-in") return "stock-in";
     if (pathname === "/stock-out") return "stock-out";
     if (pathname === "/weight") return "weight";
@@ -50,6 +54,8 @@ const AppContent: React.FC = () => {
     if (pathname === "/user") return "user";
     if (pathname === "/low-stock") return "low-stock";
     if (pathname === "/stock-summary") return "stock-summary";
+    if (pathname === "/stock-in-records") return "stock-in-records";
+    if (pathname === "/stock-out-records") return "stock-out-records";
     return "dashboard";
   };
 
@@ -70,6 +76,8 @@ const AppContent: React.FC = () => {
       user: "/user",
       "low-stock": "/low-stock",
       "stock-summary": "/stock-summary",
+      "stock-in-records": "/stock-in-records",
+      "stock-out-records": "/stock-out-records",
     };
     navigate(routes[page] || "/");
   };
@@ -108,6 +116,9 @@ const AppContent: React.FC = () => {
           <Route path="/user" element={<UsersPage />} />
           <Route path="/low-stock" element={<LowStockProducts />} />
           <Route path="/stock-summary" element={<StockSummary />} />
+          <Route path="/stock-in-records" element={<StockInRecords />} />
+          <Route path="/stock-out-records" element={<StockOutRecords />} />
+          <Route path="/products/categories" element={<Categories />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

@@ -10,6 +10,7 @@ import { ProductSearchModal } from "../components/ProductSearchModal";
 interface StockSummaryItem {
   productId: string;
   productName: string;
+  image?: string;
   unit: string;
   totalStockInInRange: number;
   totalStockOutInRange: number;
@@ -34,6 +35,9 @@ const StockSummary: React.FC = () => {
   });
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedProductName, setSelectedProductName] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [categories, setCategories] = useState<string[]>([]);
+
   const totals = React.useMemo(() => {
     const totalStockIn = summaryData.reduce((sum, item) => sum + item.totalStockInInRange, 0);
     const totalStockOut = summaryData.reduce((sum, item) => sum + item.totalStockOutInRange, 0);
@@ -86,7 +90,17 @@ const StockSummary: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get("/categories");
+      setCategories(res.data.map((c: any) => c.name));
+    } catch (err) {
+      console.error("Failed to fetch categories:", err);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -109,9 +123,13 @@ const StockSummary: React.FC = () => {
         from: new Date(fromDate).toISOString(),
         to: new Date(toDate).toISOString(),
       };
-      
+
       if (selectedProductId) {
         params.productId = selectedProductId;
+      }
+
+      if (selectedCategory) {
+        params.category = selectedCategory;
       }
 
       const res = await api.get<StockSummaryItem[]>("/stock/summary", { params });
@@ -135,6 +153,7 @@ const StockSummary: React.FC = () => {
     setToDate(new Date().toISOString().split("T")[0]);
     setSelectedProductId("");
     setSelectedProductName("");
+    setSelectedCategory("");
     setTimeout(() => fetchSummary(), 100);
   };
 
@@ -178,9 +197,10 @@ const StockSummary: React.FC = () => {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
+    const categorySuffix = selectedCategory ? `-${selectedCategory.replace(/\s+/g, "_")}` : "";
     const dateRange = `${fromDate}_to_${toDate}`;
     link.setAttribute("href", url);
-    link.setAttribute("download", `stock-summary-${dateRange}.csv`);
+    link.setAttribute("download", `stock-summary${categorySuffix}-${dateRange}.csv`);
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -191,7 +211,7 @@ const StockSummary: React.FC = () => {
     // Find product to get minStock
     const product = products.find((p) => p.id === item.productId);
     const minStock = product?.minStock || 0;
-    
+
     if (item.currentAvailableStock <= 0) {
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200/60">
@@ -217,7 +237,7 @@ const StockSummary: React.FC = () => {
     <>
       <div className="min-h-full bg-neutral-50/50 px-6 py-6 md:px-8 md:py-7">
         <div className="max-w-[1400px] mx-auto space-y-8">
-      
+
           <nav className="flex items-center gap-2 text-xs">
             <Home
               size={14}
@@ -258,7 +278,7 @@ const StockSummary: React.FC = () => {
           <div className="bg-white rounded-xl border border-neutral-200/80 shadow-sm p-6">
             <form onSubmit={handleApplyFilter} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-     
+
                 <div>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wider mb-2">
                     <Calendar size={12} className="text-neutral-400" variant="Outline" />
@@ -288,10 +308,30 @@ const StockSummary: React.FC = () => {
                   />
                 </div>
 
+                {/* Category Filter */}
+                <div>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wider mb-2">
+                    <Package size={12} className="text-neutral-400" />
+                    <span>Category (Optional)</span>
+                  </label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-300 focus:border-neutral-300 text-neutral-900 transition-all appearance-none"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Product Filter */}
                 <div>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wider mb-2">
-                      <Package size={12} className="text-neutral-400" />
+                    <Package size={12} className="text-neutral-400" />
                     <span>Product (Optional)</span>
                   </label>
                   <div className="flex gap-2">
@@ -396,9 +436,8 @@ const StockSummary: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   <p
-                    className={`text-[32px] font-semibold tracking-tight leading-none ${
-                      totals.netMovement >= 0 ? "text-slate-700" : "text-red-600"
-                    }`}
+                    className={`text-[32px] font-semibold tracking-tight leading-none ${totals.netMovement >= 0 ? "text-slate-700" : "text-red-600"
+                      }`}
                   >
                     {totals.netMovement >= 0 ? "+" : ""}
                     {totals.netMovement.toLocaleString()}
@@ -473,13 +512,29 @@ const StockSummary: React.FC = () => {
                         key={item.productId}
                         className="hover:bg-neutral-50/70 transition-colors"
                       >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
+                        <td
+                          className="px-5 py-4 cursor-pointer group/item"
+                          onClick={() => navigate(`/products/${item.productId}`)}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 flex-shrink-0 border border-neutral-200/60 rounded-lg overflow-hidden bg-neutral-50 shadow-sm transition-transform group-hover/item:scale-105">
+                              {item.image ? (
+                                <img
+                                  src={`http://localhost:4000${item.image}`}
+                                  alt={item.productName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-neutral-300">
+                                  <Package size={20} />
+                                </div>
+                              )}
+                            </div>
                             <div>
-                              <div className="text-sm font-medium text-neutral-900">
+                              <div className="text-sm font-semibold text-neutral-900 group-hover/item:text-blue-600 transition-colors">
                                 {item.productName}
                               </div>
-                              <div className="mt-1.5">{getStockBadge(item)}</div>
+                              <div className="mt-1">{getStockBadge(item)}</div>
                             </div>
                           </div>
                         </td>
@@ -553,11 +608,10 @@ const StockSummary: React.FC = () => {
                           <button
                             key={page}
                             onClick={() => handlePageChange(page as number)}
-                            className={`min-w-[28px] h-7 px-2 text-[11px] font-medium rounded transition-colors ${
-                              currentPage === page
-                                ? 'bg-neutral-900 text-white'
-                                : 'hover:bg-neutral-200 border border-neutral-200 text-neutral-900'
-                            }`}
+                            className={`min-w-[28px] h-7 px-2 text-[11px] font-medium rounded transition-colors ${currentPage === page
+                              ? 'bg-neutral-900 text-white'
+                              : 'hover:bg-neutral-200 border border-neutral-200 text-neutral-900'
+                              }`}
                           >
                             {page}
                           </button>

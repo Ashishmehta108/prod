@@ -5,6 +5,7 @@ export interface IProduct extends Document {
   category?: string;
   unit: string;
   minStock: number;
+  stockQuantity: number;
   image?: string;
   refIds: string[];        // Added: Array of reference IDs
   machineName?: string;    // Added: Machine name field
@@ -16,6 +17,7 @@ const ProductSchema = new Schema<IProduct>(
     category: { type: String },
     unit: { type: String, required: true },
     minStock: { type: Number, default: 0 },
+    stockQuantity: { type: Number, default: 0 }, // Added: Pre-calculated stock level
     image: {
       type: String,
       default: null,

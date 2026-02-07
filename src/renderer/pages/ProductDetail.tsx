@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Package, TrendingUp, AlertCircle } from "lucide-react";
+import { ArrowLeft, Package, TrendingUp, AlertCircle, X } from "lucide-react";
+
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "@renderer/api/client";
 import StockInTable from "@renderer/components/StockInTable";
@@ -23,6 +24,8 @@ const ProductDetail = () => {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<"all" | "stock_in" | "stock_out">("all");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
 
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -104,8 +107,8 @@ const ProductDetail = () => {
               Edit Product
             </button>
             <div className={`px-3 py-1.5 rounded-lg font-medium text-xs ${isLowStock
-                ? "bg-red-50 text-red-700 border border-red-200"
-                : "bg-green-50 text-green-700 border border-green-200"
+              ? "bg-red-50 text-red-700 border border-red-200"
+              : "bg-green-50 text-green-700 border border-green-200"
               }`}>
               {isLowStock ? "Low Stock" : "In Stock"}
             </div>
@@ -118,7 +121,10 @@ const ProductDetail = () => {
           <div className="lg:col-span-4 space-y-6">
             {/* Product Visual */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="aspect-square w-full bg-gray-50 rounded-lg overflow-hidden mb-6 flex items-center justify-center relative group">
+              <div
+                className="aspect-square w-full bg-gray-50 rounded-lg overflow-hidden mb-6 flex items-center justify-center relative group cursor-zoom-in"
+                onClick={() => product.image && setIsFullscreen(true)}
+              >
                 {product.image ? (
                   <img
                     src={`http://localhost:4000${product.image}`}
@@ -132,6 +138,7 @@ const ProductDetail = () => {
                   {product.unit}
                 </div>
               </div>
+
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
@@ -181,8 +188,8 @@ const ProductDetail = () => {
           <div className="lg:col-span-8 space-y-6">
             {/* Stock Status */}
             <div className={`p-6 rounded-xl border flex flex-col md:flex-row items-center justify-between gap-6 ${isLowStock
-                ? "bg-red-50 border-red-200"
-                : "bg-green-50 border-green-200"
+              ? "bg-red-50 border-red-200"
+              : "bg-green-50 border-green-200"
               }`}>
               <div className="text-center md:text-left">
                 <p className={`text-xs font-medium mb-2 ${isLowStock ? "text-red-600" : "text-green-600"}`}>
@@ -272,8 +279,30 @@ const ProductDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Fullscreen Image Overlay */}
+      {isFullscreen && product?.image && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300"
+          onClick={() => setIsFullscreen(false)}
+        >
+          <button
+            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+            onClick={(e) => { e.stopPropagation(); setIsFullscreen(false); }}
+          >
+            <X size={24} />
+          </button>
+          <img
+            src={`http://localhost:4000${product.image}`}
+            alt={product.name}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+          />
+        </div>
+      )}
     </div>
   );
 };
+
+
 
 export default ProductDetail;

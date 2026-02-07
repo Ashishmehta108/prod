@@ -25,6 +25,7 @@
     "create-admin": "ts-node src/server/scripts/createAdmin.ts",
     "seed-stock": "ts-node src/server/scripts/seedStock.ts",
     "seed-products": "ts-node src/server/scripts/seedProducts.ts",
+    "migrate-stock": "ts-node src/server/scripts/migrateStock.ts",
     "test-print": "ts-node src/server/scripts/testPrint.ts",
     "lint": "echo \"no lint configured\""
   },
@@ -93,7 +94,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.12.0",
     "serialport": "^13.0.0",
-    "sonner": "^2.0.7"
+    "sonner": "^2.0.7",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

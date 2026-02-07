@@ -1,5 +1,7 @@
 import { api } from "@renderer/api/client";
 import { useEffect, useState } from "react";
+import { formatFullDate as formatDateUtil } from "@renderer/utils/dateUtils";
+
 
 
 interface Props {
@@ -32,11 +34,7 @@ const StockInTable = ({ productId, unit }: Props) => {
     const [loading, setLoading] = useState(false);
 
     const formatFullDate = (date: string) => {
-        return new Date(date).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        });
+        return formatDateUtil(date);
     };
 
     const formatMonthYear = (date: string) => {

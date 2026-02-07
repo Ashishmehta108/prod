@@ -10,6 +10,18 @@ import * as QRCodeController from "../controller/qrcode.controller";
 
 const router = Router();
 
+
+router.get("/categories", auth, async (req, res) => {
+  try {
+    // Redundant but kept for backward compatibility if needed by other components
+    const categories = await Product.distinct("category");
+    res.json(categories.filter(Boolean).sort());
+  } catch (err) {
+    console.error("Failed to fetch categories:", err);
+    res.status(500).json({ error: "Failed to fetch categories" });
+  }
+});
+
 router.get("/", auth, async (req, res) => {
   try {
     const isPaginated = !!(req.query.page || req.query.limit);
@@ -32,9 +44,9 @@ router.get("/", auth, async (req, res) => {
     } = req.query;
     const baseMatch: any = {};
 
-    if (category) baseMatch.category = category;
-    if (unit) baseMatch.unit = unit;
-    if (machineName) baseMatch.machineName = machineName;
+    if (category) baseMatch.category = category as string;
+    if (unit) baseMatch.unit = unit as string;
+    if (machineName) baseMatch.machineName = machineName as string;
 
     if (createdFrom || createdTo) {
       baseMatch.createdAt = {};
@@ -71,60 +83,28 @@ router.get("/", auth, async (req, res) => {
 
     const pipeline: any[] = [
       { $match: baseMatch },
-
-      {
-        $lookup: {
-          from: "stockins",
-          localField: "_id",
-          foreignField: "productId",
-          pipeline: [{ $project: { quantity: 1 } }],
-          as: "stockIn",
-        },
-      },
-
-      {
-        $lookup: {
-          from: "stockouts",
-          localField: "_id",
-          foreignField: "productId",
-          pipeline: [{ $project: { quantity: 1 } }],
-          as: "stockOut",
-        },
-      },
-      {
-        $addFields: {
-          totalIn: { $sum: "$stockIn.quantity" },
-          totalOut: { $sum: "$stockOut.quantity" },
-          currentStock: {
-            $subtract: [
-              { $sum: "$stockIn.quantity" },
-              { $sum: "$stockOut.quantity" },
-            ],
-          },
-        },
-      },
     ];
 
     const stockMatch: any = {};
 
     if (minStockOnly === "true") {
-      stockMatch.$expr = { $lte: ["$currentStock", "$minStock"] };
+      stockMatch.$expr = { $lte: ["$stockQuantity", "$minStock"] };
     }
 
     if (inStock === "true") {
-      stockMatch.currentStock = { $gt: 0 };
+      stockMatch.stockQuantity = { $gt: 0 };
     }
 
     if (outOfStock === "true") {
-      stockMatch.currentStock = { $lte: 0 };
+      stockMatch.stockQuantity = { $lte: 0 };
     }
 
     if (Object.keys(stockMatch).length) {
       pipeline.push({ $match: stockMatch });
     }
+
     pipeline.push(
       { $sort: { createdAt: -1 } },
-
       {
         $facet: {
           data: [
@@ -140,7 +120,7 @@ router.get("/", auth, async (req, res) => {
                 refIds: 1,
                 machineName: 1,
                 minStock: 1,
-                currentStock: 1,
+                currentStock: "$stockQuantity",
               },
             },
           ],
@@ -174,50 +154,8 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-// router.get("/", async (_req, res) => {
-//   try {
-//     const products = await Product.find().lean();
 
-//     const result = await Promise.all(
-//       products.map(async (p) => {
-//         const productId = new mongoose.Types.ObjectId(p._id);
 
-//         const inAgg = await StockIn.aggregate([
-//           { $match: { productId } },
-//           { $group: { _id: null, total: { $sum: "$quantity" } } },
-//         ]);
-
-//         const outAgg = await StockOut.aggregate([
-//           { $match: { productId } },
-//           { $group: { _id: null, total: { $sum: "$quantity" } } },
-//         ]);
-
-//         const totalIn = inAgg[0]?.total || 0;
-//         const totalOut = outAgg[0]?.total || 0;
-//         const currentStock = totalIn - totalOut;
-
-//         return {
-//           id: p._id,
-//           name: p.name,
-//           category: p.category,
-//           unit: p.unit,
-//           minStock: p.minStock,
-//           currentStock,
-//           image: p.image,
-//           refIds: p.refIds,
-//           machineName: p.machineName,
-//         };
-//       })
-//     );
-
-//     res.json(result);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Failed to fetch products" });
-//   }
-// });
-
-// POST /api/products
 router.post("/", auth, adminOnly, uploadSingleImage, async (req: any, res) => {
   try {
     const { name, category, unit, minStock, refIds, machineName } = req.body;
@@ -278,36 +216,16 @@ router.get("/search", auth, async (req, res) => {
       .lean()
       .limit(50);
 
-    const result = await Promise.all(
-      products.map(async (p) => {
-        const productId = new mongoose.Types.ObjectId(p._id);
-
-        const [inAgg] = await StockIn.aggregate([
-          { $match: { productId } },
-          { $group: { _id: null, total: { $sum: "$quantity" } } },
-        ]);
-
-        const [outAgg] = await StockOut.aggregate([
-          { $match: { productId } },
-          { $group: { _id: null, total: { $sum: "$quantity" } } },
-        ]);
-
-        const totalIn = inAgg?.total || 0;
-        const totalOut = outAgg?.total || 0;
-        const currentStock = totalIn - totalOut;
-
-        return {
-          id: p._id,
-          name: p.name,
-          category: p.category,
-          unit: p.unit,
-          minStock: p.minStock,
-          currentStock,
-          image: p.image,
-          machineName: p.machineName,
-        };
-      })
-    );
+    const result = products.map((p) => ({
+      id: p._id,
+      name: p.name,
+      category: p.category,
+      unit: p.unit,
+      minStock: p.minStock,
+      currentStock: p.stockQuantity,
+      image: p.image,
+      machineName: p.machineName,
+    }));
 
     res.json(result);
   } catch (err) {
@@ -328,20 +246,16 @@ router.get("/:id", auth, async (req, res) => {
     const product = await Product.findById(id).lean();
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    const productId = new mongoose.Types.ObjectId(id);
-
-    const [inAgg] = await StockIn.aggregate([
-      { $match: { productId } },
-      { $group: { _id: null, total: { $sum: "$quantity" } } },
+    const [totalIn, totalOut] = await Promise.all([
+      StockIn.aggregate([
+        { $match: { productId: new mongoose.Types.ObjectId(id) } },
+        { $group: { _id: null, total: { $sum: "$quantity" } } }
+      ]),
+      StockOut.aggregate([
+        { $match: { productId: new mongoose.Types.ObjectId(id) } },
+        { $group: { _id: null, total: { $sum: "$quantity" } } }
+      ])
     ]);
-
-    const [outAgg] = await StockOut.aggregate([
-      { $match: { productId } },
-      { $group: { _id: null, total: { $sum: "$quantity" } } },
-    ]);
-
-    const totalIn = inAgg?.total || 0;
-    const totalOut = outAgg?.total || 0;
 
     res.json({
       id: product._id,
@@ -352,59 +266,17 @@ router.get("/:id", auth, async (req, res) => {
       image: product.image,
       refIds: product.refIds || [],
       machineName: product.machineName,
-      totalIn,
-      totalOut,
-      currentStock: totalIn - totalOut
+      currentStock: product.stockQuantity,
+      totalIn: totalIn[0]?.total || 0,
+      totalOut: totalOut[0]?.total || 0
     });
+
   } catch (e) {
     res.status(500).json({ error: "Failed to fetch product" });
   }
 });
 
 
-router.get("/:id", auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid product ID" });
-    }
-
-    const product = await Product.findById(id).lean();
-    if (!product) return res.status(404).json({ error: "Product not found" });
-
-    const productId = new mongoose.Types.ObjectId(id);
-
-    const [inAgg] = await StockIn.aggregate([
-      { $match: { productId } },
-      { $group: { _id: null, total: { $sum: "$quantity" } } },
-    ]);
-
-    const [outAgg] = await StockOut.aggregate([
-      { $match: { productId } },
-      { $group: { _id: null, total: { $sum: "$quantity" } } },
-    ]);
-
-    const totalIn = inAgg?.total || 0;
-    const totalOut = outAgg?.total || 0;
-
-    res.json({
-      id: product._id,
-      name: product.name,
-      category: product.category,
-      unit: product.unit,
-      minStock: product.minStock,
-      image: product.image,
-      refIds: product.refIds || [],
-      machineName: product.machineName,
-      totalIn,
-      totalOut,
-      currentStock: totalIn - totalOut
-    });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to fetch product" });
-  }
-});
 
 router.get("/:id/stock-in", async (req, res) => {
   try {
@@ -436,18 +308,18 @@ router.get("/:id/stock-in", async (req, res) => {
       productId: new mongoose.Types.ObjectId(id),
     };
 
-    if (supplier) match.supplier = supplier;
-    if (location) match.location = location;
-    if (invoiceNo) match.invoiceNo = invoiceNo;
+    if (supplier) match.supplier = supplier as string;
+    if (location) match.location = location as string;
+    if (invoiceNo) match.invoiceNo = invoiceNo as string;
 
     // Date range filtering
     if (startDate || endDate) {
       match.date = {};
       if (startDate) {
-        match.date.$gte = new Date(startDate);
+        match.date.$gte = new Date(startDate as any);
       }
       if (endDate) {
-        const end = new Date(endDate);
+        const end = new Date(endDate as any);
         end.setHours(23, 59, 59, 999);
         match.date.$lte = end;
       }
@@ -465,7 +337,7 @@ router.get("/:id/stock-in", async (req, res) => {
     // Build sort object
     const sortOptions: any = {};
     const validSortFields = ['date', 'quantity', 'supplier', 'invoiceNo', 'location'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const sortField = validSortFields.includes(sortBy as string) ? (sortBy as string) : 'date';
     sortOptions[sortField] = sortOrder === 'asc' ? 1 : -1;
 
     const skip = (pageNum - 1) * limitNum;
@@ -499,7 +371,6 @@ router.get("/:id/stock-in", async (req, res) => {
   }
 });
 
-// Temporary debug - add this to your route file
 router.get("/:id/stock-out-raw", auth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -516,7 +387,7 @@ router.get("/:id/stock-out-raw", auth, async (req, res) => {
       uniquePurposes: [...new Set(items.map(i => i.purpose))]
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 router.get("/:id/stock-out", auth, async (req, res) => {
@@ -555,26 +426,26 @@ router.get("/:id/stock-out", auth, async (req, res) => {
 
     // Use regex for case-insensitive matching on filters
     if (department) {
-      match.department = { $regex: new RegExp(`^${department.trim()}$`, 'i') };
+      match.department = { $regex: new RegExp(`^${(department as string).trim()}$`, 'i') };
     }
     if (issuedBy) {
-      match.issuedBy = { $regex: new RegExp(`^${issuedBy.trim()}$`, 'i') };
+      match.issuedBy = { $regex: new RegExp(`^${(issuedBy as string).trim()}$`, 'i') };
     }
     if (issuedTo) {
-      match.issuedTo = { $regex: new RegExp(`^${issuedTo.trim()}$`, 'i') };
+      match.issuedTo = { $regex: new RegExp(`^${(issuedTo as string).trim()}$`, 'i') };
     }
     if (purpose) {
-      match.purpose = { $regex: new RegExp(`^${purpose.trim()}$`, 'i') };
+      match.purpose = { $regex: new RegExp(`^${(purpose as string).trim()}$`, 'i') };
     }
 
     // Date range filtering
     if (startDate || endDate) {
       match.date = {};
       if (startDate) {
-        match.date.$gte = new Date(startDate);
+        match.date.$gte = new Date(startDate as any);
       }
       if (endDate) {
-        const end = new Date(endDate);
+        const end = new Date(endDate as any);
         end.setHours(23, 59, 59, 999);
         match.date.$lte = end;
       }
@@ -593,7 +464,7 @@ router.get("/:id/stock-out", auth, async (req, res) => {
     // Build sort object
     const sortOptions: any = {};
     const validSortFields = ['date', 'quantity', 'department', 'issuedBy', 'issuedTo', 'purpose'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const sortField = validSortFields.includes(sortBy as string) ? (sortBy as string) : 'date';
     sortOptions[sortField] = sortOrder === 'asc' ? 1 : -1;
 
     const skip = (pageNum - 1) * limitNum;
@@ -632,94 +503,8 @@ router.get("/:id/stock-out", auth, async (req, res) => {
   }
 });
 
-// router.get("/:id", auth, async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const page = Math.max(Number(req.query.page) || 1, 1);
-//     const limit = Math.min(Number(req.query.limit) || 10, 50);
-//     const skip = (page - 1) * limit;
 
-//     if (!mongoose.Types.ObjectId.isValid(id)) {
-//       return res.status(400).json({ error: "Invalid product ID" });
-//     }
 
-//     const product = await Product.findById(id).lean();
-
-//     if (!product) {
-//       return res.status(404).json({ error: "Product not found" });
-//     }
-
-//     const productId = new mongoose.Types.ObjectId(product._id);
-
-//     // Calculate stock totals (always full sum)
-//     const [inAgg] = await StockIn.aggregate([
-//       { $match: { productId } },
-//       { $group: { _id: null, total: { $sum: "$quantity" } } },
-//     ]);
-
-//     const [outAgg] = await StockOut.aggregate([
-//       { $match: { productId } },
-//       { $group: { _id: null, total: { $sum: "$quantity" } } },
-//     ]);
-
-//     const totalIn = inAgg?.total || 0;
-//     const totalOut = outAgg?.total || 0;
-//     const currentStock = totalIn - totalOut;
-
-//     // Paginated stock movements
-//     const [stockIn, stockOut, totalInCount, totalOutCount] = await Promise.all([
-//       StockIn.find({ productId }).sort({ date: -1 }).skip(skip).limit(limit).lean(),
-//       StockOut.find({ productId }).sort({ date: -1 }).skip(skip).limit(limit).lean(),
-//       StockIn.countDocuments({ productId }),
-//       StockOut.countDocuments({ productId })
-//     ]);
-
-//     // Fetch unique values for filters
-//     const [departments, issuedBy, suppliers, locations, purposes] = await Promise.all([
-//       StockOut.distinct("department", { productId }),
-//       StockOut.distinct("issuedBy", { productId }),
-//       StockIn.distinct("supplier", { productId }),
-//       StockIn.distinct("location", { productId }),
-//       StockOut.distinct("purpose", { productId })
-//     ]);
-
-//     res.json({
-//       id: product._id,
-//       name: product.name,
-//       category: product.category,
-//       unit: product.unit,
-//       minStock: product.minStock,
-//       image: product.image || null,
-//       refIds: product.refIds || [],
-//       machineName: product.machineName || null,
-//       currentStock,
-//       totalIn,
-//       totalOut,
-//       stockIn,
-//       stockOut,
-//       pagination: {
-//         page,
-//         limit,
-//         totalIn: totalInCount,
-//         totalOut: totalOutCount,
-//         totalPagesIn: Math.ceil(totalInCount / limit),
-//         totalPagesOut: Math.ceil(totalOutCount / limit)
-//       },
-//       filterOptions: {
-//         departments: departments.filter(Boolean),
-//         issuedBy: issuedBy.filter(Boolean),
-//         suppliers: suppliers.filter(Boolean),
-//         locations: locations.filter(Boolean),
-//         purposes: purposes.filter(Boolean)
-//       }
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Failed to fetch product" });
-//   }
-// });
-
-// UPDATE PRODUCT — ADMIN ONLY
 router.put("/:id", auth, adminOnly, uploadSingleImage, async (req: any, res) => {
   try {
     const { id } = req.params;
@@ -760,21 +545,13 @@ router.put("/:id", auth, adminOnly, uploadSingleImage, async (req: any, res) => 
 
 
     if (!updated) return res.status(404).json({ error: "Product not found" });
+    const parsedCurrentStock =
+      currentStock !== undefined ? Number(currentStock) : undefined;
 
-    // Handle stock adjustment if currentStock is provided
-    if (typeof currentStock === "number") {
-      const productId = new mongoose.Types.ObjectId(id);
-      const [inAgg] = await StockIn.aggregate([
-        { $match: { productId } },
-        { $group: { _id: null, total: { $sum: "$quantity" } } },
-      ]);
-      const [outAgg] = await StockOut.aggregate([
-        { $match: { productId } },
-        { $group: { _id: null, total: { $sum: "$quantity" } } },
-      ]);
 
-      const currentRealStock = (inAgg?.total || 0) - (outAgg?.total || 0);
-      const diff = currentStock - currentRealStock;
+    if (!isNaN(parsedCurrentStock!)) {
+      const currentRealStock = updated.stockQuantity;
+      const diff = parsedCurrentStock! - currentRealStock;
 
       if (diff !== 0) {
         if (diff > 0) {
@@ -795,14 +572,15 @@ router.put("/:id", auth, adminOnly, uploadSingleImage, async (req: any, res) => 
       }
     }
 
-    res.json(updated);
+    // Fetch final updated doc to get the new stockQuantity if adjusted
+    const finalDoc = await Product.findById(id);
+    res.json(finalDoc);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update product" });
   }
 });
 
-// DELETE PRODUCT — ADMIN ONLY
 router.delete("/:id", auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
@@ -850,94 +628,3 @@ router.get("/:id/qr", auth, async (req, res) => {
 
 export default router;
 
-// import { Router } from "express";
-// import mongoose from "mongoose";
-// import { Product } from "../models/Product";
-// import { StockIn } from "../models/StockIn";
-// import { StockOut } from "../models/StockOut";
-// import { auth, adminOnly, AuthRequest } from "../middleware/auth";
-
-// const router = Router();
-
-// // GET ALL PRODUCTS WITH CURRENT STOCK
-// router.get("/", auth, async (_req, res) => {
-//   try {
-//     const products = await Product.find().lean();
-
-//     const result = await Promise.all(
-//       products.map(async (p) => {
-//         const productId = new mongoose.Types.ObjectId(p._id);
-
-//         const [inAgg] = await StockIn.aggregate([
-//           { $match: { productId } },
-//           { $group: { _id: null, total: { $sum: "$quantity" } } },
-//         ]);
-
-//         const [outAgg] = await StockOut.aggregate([
-//           { $match: { productId } },
-//           { $group: { _id: null, total: { $sum: "$quantity" } } },
-//         ]);
-
-//         return {
-//           id: p._id,
-//           name: p.name,
-//           category: p.category,
-//           unit: p.unit,
-//           minStock: p.minStock,
-//           currentStock: (inAgg?.total || 0) - (outAgg?.total || 0),
-//         };
-//       })
-//     );
-
-//     res.json(result);
-//   } catch (err) {
-//     res.status(500).json({ error: "Failed to fetch products" });
-//   }
-// });
-
-// // CREATE PRODUCT — ADMIN ONLY
-// router.post("/", auth, adminOnly, async (req, res) => {
-//   try {
-//     const { name, category, unit, minStock } = req.body;
-
-//     const product = await Product.create({
-//       name,
-//       category,
-//       unit,
-//       minStock: Number(minStock) || 0,
-//     });
-
-//     res.status(201).json(product);
-//   } catch (err) {
-//     res.status(500).json({ error: "Failed to create product" });
-//   }
-// });
-
-// // UPDATE PRODUCT — ADMIN ONLY
-// router.put("/:id", auth, adminOnly, async (req, res) => {
-//   try {
-//     const updated = await Product.findByIdAndUpdate(req.params.id, req.body, {
-//       new: true,
-//     });
-
-//     if (!updated) return res.status(404).json({ error: "Product not found" });
-
-//     res.json(updated);
-//   } catch (err) {
-//     res.status(500).json({ error: "Failed to update product" });
-//   }
-// });
-
-// // DELETE PRODUCT — ADMIN ONLY
-// router.delete("/:id", auth, adminOnly, async (req, res) => {
-//   try {
-//     const deleted = await Product.findByIdAndDelete(req.params.id);
-//     if (!deleted) return res.status(404).json({ error: "Product not found" });
-
-//     res.json({ message: "Product deleted successfully" });
-//   } catch (err) {
-//     res.status(500).json({ error: "Failed to delete product" });
-//   }
-// });
-
-// export default router;

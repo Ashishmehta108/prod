@@ -11,36 +11,16 @@ router.get("/", async (_req, res) => {
   try {
     const products = await Product.find().lean();
 
-    let lowStockCount = 0;
+    const lowStockCount = await Product.countDocuments({
+      $expr: { $lt: ["$stockQuantity", "$minStock"] }
+    });
 
-    const summaries = await Promise.all(
-      products.map(async (p) => {
-        const productId = new mongoose.Types.ObjectId(p._id);
-
-        const inAgg = await StockIn.aggregate([
-          { $match: { productId } },
-          { $group: { _id: null, total: { $sum: "$quantity" } } }
-        ]);
-
-        const outAgg = await StockOut.aggregate([
-          { $match: { productId } },
-          { $group: { _id: null, total: { $sum: "$quantity" } } }
-        ]);
-
-        const totalIn = inAgg[0]?.total || 0;
-        const totalOut = outAgg[0]?.total || 0;
-        const currentStock = totalIn - totalOut;
-
-        if (currentStock < p.minStock) lowStockCount++;
-
-        return {
-          id: p._id,
-          name: p.name,
-          currentStock,
-          minStock: p.minStock
-        };
-      })
-    );
+    const summaries = products.map((p) => ({
+      id: p._id,
+      name: p.name,
+      currentStock: p.stockQuantity,
+      minStock: p.minStock
+    }));
 
     res.json({
       totalProducts: products.length,

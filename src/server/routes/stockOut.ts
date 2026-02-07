@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { StockOut } from "../models/StockOut";
 import { StockIn } from "../models/StockIn";
+import { Product } from "../models/Product";
 import mongoose from "mongoose";
 
 const router = Router();
 
-// Simple helper to prevent negative stock
 async function getCurrentStock(productId: string): Promise<number> {
   const objId = new mongoose.Types.ObjectId(productId);
 
@@ -24,7 +24,6 @@ async function getCurrentStock(productId: string): Promise<number> {
   return totalIn - totalOut;
 }
 
-// GET /api/stock-out
 router.get("/", async (req, res) => {
   try {
     const { search, department, dateFrom, dateTo } = req.query;
@@ -140,22 +139,26 @@ router.post("/", async (req, res) => {
         .json({ error: "productId and quantity are required" });
     }
 
+    const qty = Number(quantity);
     const current = await getCurrentStock(productId);
-    if (current < Number(quantity)) {
+
+    if (current < qty) {
       return res.status(400).json({
-        error: `Insufficient stock. Current: ${current}, requested: ${quantity}`,
+        error: `Insufficient stock. Current: ${current}, requested: ${qty}`,
       });
     }
 
     const record = await StockOut.create({
       productId,
-      quantity: Number(quantity),
+      quantity: qty,
       department,
       issuedBy,
       issuedTo,
       purpose,
       date: date ? new Date(date) : undefined,
     });
+
+    // Note: StockQuantity decrement is now handled by StockOut model hooks!
 
     res.status(201).json(record);
   } catch (err) {
@@ -170,6 +173,59 @@ router.get("/departments", async (req, res) => {
     res.json(departments);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch departments" });
+  }
+});
+
+// PUT /api/stock-out/:id
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quantity, department, issuedBy, issuedTo, purpose, date } = req.body;
+
+    const record = await StockOut.findById(id);
+    if (!record) return res.status(404).json({ error: "Record not found" });
+
+    if (quantity !== undefined) {
+      const diff = Number(quantity) - record.quantity;
+      if (diff > 0) {
+        const current = await getCurrentStock(record.productId.toString());
+        if (current < diff) {
+          return res.status(400).json({
+            error: `Insufficient stock for update. Current: ${current}, additional needed: ${diff}`,
+          });
+        }
+      }
+      record.quantity = Number(quantity);
+    }
+
+    if (department !== undefined) record.department = department;
+    if (issuedBy !== undefined) record.issuedBy = issuedBy;
+    if (issuedTo !== undefined) record.issuedTo = issuedTo;
+    if (purpose !== undefined) record.purpose = purpose;
+    if (date !== undefined) record.date = new Date(date);
+
+    await record.save(); // This triggers pre('save') and post('save') hooks for stock update
+
+    res.json(record);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update stock-out record" });
+  }
+});
+
+// DELETE /api/stock-out/:id
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await StockOut.findById(id);
+    if (!record) return res.status(404).json({ error: "Record not found" });
+
+    await StockOut.findOneAndDelete({ _id: id }); // This triggers post('findOneAndDelete') hook
+
+    res.json({ message: "Record deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete stock-out record" });
   }
 });
 

@@ -8,7 +8,6 @@ import {
   Calculator,
   RefreshCircle,
   ReceiptText,
-  ArrowDown,
   ArrowUp,
   Home2,
   Box1,
@@ -44,6 +43,7 @@ const allItems: SidebarItem[] = [
     children: [
       { id: "products-all", label: "All Products", icon: ClipboardText },
       { id: "products-add", label: "Add Product", icon: AddCircle },
+      { id: "products-categories", label: "Categories", icon: RefreshCircle },
     ],
   },
   {
@@ -52,9 +52,11 @@ const allItems: SidebarItem[] = [
     icon: Box,
     adminOnly: true,
     children: [
-      { id: "stock-in", label: "Stock In", icon: ArrowDown },
+      { id: "stock-in", label: "Stock In", icon: AddCircle },
+      { id: "stock-in-records", label: "Stock In Records", icon: ReceiptText },
       { id: "stock-out", label: "Stock Out", icon: ArrowUp },
-      { id: "stock-summary", label: "Stock Summary", icon: ClipboardText },
+      { id: "stock-out-records", label: "Stock Out Records", icon: ClipboardText },
+      { id: "stock-summary", label: "Stock Summary", icon: Box },
     ],
   },
   { id: "weight", label: "Weight Entry", icon: Weight },
