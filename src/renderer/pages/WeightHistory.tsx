@@ -17,6 +17,7 @@ import {
     Clock
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDateIST } from "../utils/dateUtils";
 
 interface Record {
     _id: string;
@@ -191,8 +192,8 @@ const WeightHistory = () => {
                                             </td>
                                             <td className="px-6 py-5">
                                                 <div className="flex flex-col">
-                                                    <span className="text-xs font-medium text-neutral-700">{new Date(record.recordedAt).toLocaleDateString()}</span>
-                                                    <span className="text-[11px] text-neutral-400">{new Date(record.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    <span className="text-xs font-medium text-neutral-700">{formatDateIST(record.recordedAt)}</span>
+                                                    <span className="text-[11px] text-neutral-400">{new Date(record.recordedAt).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 text-right">

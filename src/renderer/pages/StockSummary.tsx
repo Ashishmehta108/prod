@@ -8,6 +8,7 @@ import { Skeleton } from "../components/Skeleton";
 import { ProductSearchModal } from "../components/ProductSearchModal";
 import { toast } from "sonner";
 import Ripple from "../components/shared/Ripple";
+import { getTodayISTForInput, inputDateToISOIST, inputDateToEndOfDayIST } from "../utils/dateUtils";
 
 interface StockSummaryItem {
   productId: string;
@@ -29,11 +30,13 @@ const StockSummary: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [fromDate, setFromDate] = useState(() => {
     const date = new Date();
-    date.setMonth(date.getMonth() - 1); // Default to last month
-    return date.toISOString().split("T")[0];
+    date.setMonth(date.getMonth() - 1);
+    // Use IST date so midnight window doesn't shift the default date
+    const istDate = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
+    return istDate.toISOString().split("T")[0];
   });
   const [toDate, setToDate] = useState(() => {
-    return new Date().toISOString().split("T")[0];
+    return getTodayISTForInput();
   });
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedProductName, setSelectedProductName] = useState<string>("");
@@ -122,8 +125,8 @@ const StockSummary: React.FC = () => {
     try {
       setLoading(true);
       const params: any = {
-        from: new Date(fromDate).toISOString(),
-        to: new Date(toDate).toISOString(),
+        from: inputDateToISOIST(fromDate),
+        to: inputDateToEndOfDayIST(toDate),
       };
 
       if (selectedProductId) {
@@ -151,8 +154,9 @@ const StockSummary: React.FC = () => {
   const handleClearFilters = () => {
     const date = new Date();
     date.setMonth(date.getMonth() - 1);
-    setFromDate(date.toISOString().split("T")[0]);
-    setToDate(new Date().toISOString().split("T")[0]);
+    const istDate = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
+    setFromDate(istDate.toISOString().split("T")[0]);
+    setToDate(getTodayISTForInput());
     setSelectedProductId("");
     setSelectedProductName("");
     setSelectedCategory("");

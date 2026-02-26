@@ -7,6 +7,7 @@ import { ProductListItem } from "src/utils/types/product.types";
 import { Skeleton } from "../components/Skeleton";
 import { toast } from "sonner";
 import Ripple from "../components/shared/Ripple";
+import { getISTDateString } from "../utils/dateUtils";
 
 const ITEMS_PER_PAGE = 15;
 
@@ -109,7 +110,7 @@ const LowStockProducts: React.FC = () => {
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
-      const dateStr = new Date().toISOString().split("T")[0];
+      const dateStr = getISTDateString();
       link.setAttribute("href", url);
       link.setAttribute("download", `low-stock-products-${dateStr}.csv`);
       link.style.visibility = "hidden";
@@ -454,8 +455,8 @@ const LowStockProducts: React.FC = () => {
                             key={page}
                             onClick={() => handlePageChange(page as number)}
                             className={`min-w-[32px] h-8 text-[11px] font-bold rounded-lg transition-all ${currentPage === page
-                                ? "bg-neutral-900 text-white shadow-md"
-                                : "text-neutral-500 hover:bg-white border border-transparent hover:border-neutral-200"
+                              ? "bg-neutral-900 text-white shadow-md"
+                              : "text-neutral-500 hover:bg-white border border-transparent hover:border-neutral-200"
                               }`}
                           >
                             {page}

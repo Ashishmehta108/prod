@@ -33,11 +33,12 @@ const Topbar: React.FC = () => {
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  const today = new Date().toLocaleDateString(undefined, {
+  const today = new Date().toLocaleDateString("en-IN", {
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   });
 
   // Health check

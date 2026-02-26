@@ -207,6 +207,7 @@ router.post("/", async (req, res) => {
       date: date ? new Date(date) : undefined
     });
 
+
     // Note: StockQuantity increment is now handled by StockIn model hooks!
 
     res.status(201).json(record);

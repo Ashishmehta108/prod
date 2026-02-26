@@ -1,6 +1,6 @@
 import { api } from "@renderer/api/client";
 import { useEffect, useState } from "react";
-import { formatFullDate as formatDateUtil } from "@renderer/utils/dateUtils";
+import { formatFullDate as formatDateUtil, inputDateToISOIST, inputDateToEndOfDayIST } from "@renderer/utils/dateUtils";
 
 
 interface Props {
@@ -74,8 +74,8 @@ const StockOutTable = ({ productId, unit }: Props) => {
             if (issuedBy) params.issuedBy = issuedBy;
             if (issuedTo) params.issuedTo = issuedTo;
             if (purpose) params.purpose = purpose;
-            if (startDate) params.startDate = startDate;
-            if (endDate) params.endDate = endDate;
+            if (startDate) params.startDate = inputDateToISOIST(startDate);
+            if (endDate) params.endDate = inputDateToEndOfDayIST(endDate);
 
             const res = await api.get(`/products/${productId}/stock-out`, { params });
             const fetchedItems = res.data.items || [];

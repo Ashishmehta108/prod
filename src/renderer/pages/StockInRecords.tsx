@@ -15,7 +15,7 @@ import {
     Building2
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate } from "../utils/dateUtils";
+import { formatDate, formatDateIST, formatDateForInput, inputDateToISOIST, inputDateToEndOfDayIST, getISTDateString } from "../utils/dateUtils";
 
 import { TableSkeleton } from "../components/Skeleton";
 import Ripple from "../components/shared/Ripple";
@@ -78,7 +78,7 @@ const EditStockInModal: React.FC<{
                 supplier: record.supplier || "",
                 invoiceNo: record.invoiceNo || "",
                 location: record.location || "",
-                date: new Date(record.date).toISOString().split('T')[0]
+                date: formatDateForInput(record.date)
             });
         }
     }, [record]);
@@ -93,7 +93,10 @@ const EditStockInModal: React.FC<{
         }
         setLoading(true);
         try {
-            await api.put(`/stock-in/${record._id}`, form);
+            await api.put(`/stock-in/${record._id}`, {
+                ...form,
+                date: form.date ? inputDateToISOIST(form.date) : undefined,
+            });
             toast.success("Record updated successfully");
             onSuccess();
             onClose();
@@ -252,8 +255,8 @@ const StockInRecords: React.FC = () => {
                     params: {
                         search: filters.search || undefined,
                         location: filters.location || undefined,
-                        dateFrom: filters.dateFrom || undefined,
-                        dateTo: filters.dateTo || undefined,
+                        dateFrom: filters.dateFrom ? inputDateToISOIST(filters.dateFrom) : undefined,
+                        dateTo: filters.dateTo ? inputDateToEndOfDayIST(filters.dateTo) : undefined,
                         page: currentPage,
                         limit: itemsPerPage,
                     }
@@ -313,7 +316,7 @@ const StockInRecords: React.FC = () => {
             item.supplier || "",
             item.invoiceNo || "",
             item.location || "",
-            new Date(item.date).toLocaleDateString(),
+            formatDateIST(item.date),
         ]);
         return [
             headers.join(","),
@@ -337,7 +340,7 @@ const StockInRecords: React.FC = () => {
     // Export only the current page (instant)
     const handleExportPage = () => {
         if (!records.length) return;
-        const dateStr = new Date().toISOString().split("T")[0];
+        const dateStr = getISTDateString();
         downloadCSV(buildStockInCSV(records), `stock-in-page${currentPage}-${dateStr}.csv`);
         toast.success(`Exported ${records.length} records from page ${currentPage}`);
     };
@@ -356,7 +359,7 @@ const StockInRecords: React.FC = () => {
             });
             const allRecords: StockInRecord[] = res.data?.data || [];
             if (!allRecords.length) { toast.info("No records to export."); return; }
-            const dateStr = new Date().toISOString().split("T")[0];
+            const dateStr = getISTDateString();
             downloadCSV(buildStockInCSV(allRecords), `stock-in-all-${dateStr}.csv`);
             toast.success(`Exported ${allRecords.length} records successfully!`);
         } catch (err) {

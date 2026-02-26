@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { z } from "zod";
 import { api } from "../api/client";
+import { getTodayISTForInput, inputDateToISOIST } from "../utils/dateUtils";
 import {
   Package,
   ArrowUp,
@@ -64,7 +65,7 @@ const StockOut: React.FC = () => {
     issuedBy: user?.username || "",
     issuedTo: "",
     purpose: "",
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayISTForInput(),
   });
 
   useEffect(() => {
@@ -152,6 +153,7 @@ const StockOut: React.FC = () => {
 
     const stockOutPromise = api.post("/stock-out", {
       ...form,
+      date: inputDateToISOIST(form.date),
       quantity: Number(form.quantity)
     });
 
@@ -165,7 +167,7 @@ const StockOut: React.FC = () => {
           issuedBy: user?.username || "",
           issuedTo: "",
           purpose: "",
-          date: new Date().toISOString().split('T')[0],
+          date: getTodayISTForInput(),
         });
         setSelectedProductStock(null);
         setSelectedProductUnit("");
@@ -230,26 +232,32 @@ const StockOut: React.FC = () => {
                   <Package size={13} className="text-neutral-500" />
                   Product <span className="text-red-500">*</span>
                 </label>
-                <div className="flex gap-2">
-                  <select
-                    className={`flex-1 h-10 bg-neutral-50 border ${errors.productId ? 'border-red-500' : 'border-neutral-300'} px-3 text-sm text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
-                    value={form.productId}
-                    onChange={(e) => handleProductChange(e.target.value)}
-                  >
-                    <option value="">Select product</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                <div className="flex">
+                  <div className="relative flex-1">
+                    <select
+                      className={`w-full h-10 appearance-none bg-neutral-50 border-y border-l ${errors.productId ? 'border-red-500' : 'border-neutral-300'} px-3 pr-8 text-sm text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
+                      value={form.productId}
+                      onChange={(e) => handleProductChange(e.target.value)}
+                    >
+                      <option value="">Select product</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name.length > 45 ? p.name.substring(0, 45) + '…' : p.name}
+                        </option>
+                      ))}
+                    </select>
+
+                  </div>
                   <button
                     type="button"
                     onClick={() => setIsSearchModalOpen(true)}
-                    className={`h-10 w-10 border ${errors.productId ? 'border-red-500' : 'border-neutral-300'} bg-white hover:bg-neutral-50 hover:border-neutral-400 transition-colors flex items-center justify-center active:scale-98`}
+                    className={`h-10 w-10 border ${errors.productId ? 'border-red-500' : 'border-neutral-300'} bg-white hover:bg-neutral-50 hover:border-neutral-400 transition-colors flex items-center justify-center active:scale-98 flex-shrink-0`}
                   >
                     <SearchCode size={18} className="text-neutral-600" />
                   </button>
                 </div>
                 {errors.productId && <p className="text-[10px] text-red-500 font-medium ml-1">{errors.productId}</p>}
+
                 {selectedProductStock !== null && form.productId && (
                   <div className={`px-3 py-2 border flex items-center justify-between text-xs ${isOutOfStock
                     ? 'bg-neutral-100 border-neutral-400'
@@ -431,15 +439,15 @@ const StockOut: React.FC = () => {
               )}
             </button>
           </div>
-        </form>
-      </div>
+        </form >
+      </div >
 
       <ProductSearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         onSelect={(id) => handleProductChange(id)}
       />
-    </div>
+    </div >
   );
 };
 

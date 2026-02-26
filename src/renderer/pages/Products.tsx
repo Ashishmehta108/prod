@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import { ProductsPageSkeleton } from "../components/Skeleton";
 import Ripple from "../components/shared/Ripple";
+import { getISTDateString } from "../utils/dateUtils";
 
 const ProductsList = () => {
     const navigate = useNavigate();
@@ -297,7 +298,7 @@ const ProductsList = () => {
     // Export only the current page (instant, from in-memory)
     const handleExportPage = () => {
         if (!products.length) return;
-        const dateStr = new Date().toISOString().split("T")[0];
+        const dateStr = getISTDateString();
         downloadCSV(buildCSV(products), `products-page${page}-${dateStr}.csv`);
         toast.success(`Exported ${products.length} products from page ${page}`);
     };
@@ -321,7 +322,7 @@ const ProductsList = () => {
             const res = await api.get("/products/export", { params });
             const allProducts: ProductListItem[] = res.data?.data || [];
             if (!allProducts.length) { toast.info("No products to export."); return; }
-            const dateStr = new Date().toISOString().split("T")[0];
+            const dateStr = getISTDateString();
             downloadCSV(buildCSV(allProducts), `products-all-${dateStr}.csv`);
             toast.success(`Exported ${allProducts.length} products successfully!`);
         } catch (err) {

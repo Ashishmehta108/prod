@@ -20,6 +20,7 @@ import {
     ChevronRight,
     Activity
 } from "lucide-react";
+import { formatDateIST } from "../../utils/dateUtils";
 
 interface WeightRecord {
     _id: string;
@@ -213,12 +214,13 @@ const TallySync: React.FC = () => {
                                                         <td className="px-6 py-4">
                                                             <div className="flex flex-col">
                                                                 <span className="text-xs font-medium text-stone-700">
-                                                                    {new Date(record.recordedAt).toLocaleDateString()}
+                                                                    {formatDateIST(record.recordedAt)}
                                                                 </span>
                                                                 <span className="text-xs text-stone-400">
-                                                                    {new Date(record.recordedAt).toLocaleTimeString([], {
+                                                                    {new Date(record.recordedAt).toLocaleTimeString("en-IN", {
                                                                         hour: '2-digit',
-                                                                        minute: '2-digit'
+                                                                        minute: '2-digit',
+                                                                        timeZone: 'Asia/Kolkata'
                                                                     })}
                                                                 </span>
                                                             </div>

@@ -16,6 +16,7 @@ import {
     TrendingUp,
     History
 } from "lucide-react";
+import { formatDateIST } from "../../utils/dateUtils";
 
 interface Voucher {
     _id: string;
@@ -156,7 +157,7 @@ const TallyVouchers: React.FC = () => {
                                         </div>
                                         <div className="flex flex-col items-end">
                                             <Clock size={14} className="text-stone-300 mb-1" />
-                                            <p className="text-xs font-medium text-stone-500">{new Date(v.recordedAt).toLocaleDateString()}</p>
+                                            <p className="text-xs font-medium text-stone-500">{formatDateIST(v.recordedAt)}</p>
                                         </div>
                                     </div>
 

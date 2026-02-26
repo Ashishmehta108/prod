@@ -1,6 +1,6 @@
 import { api } from "@renderer/api/client";
 import { useEffect, useState } from "react";
-import { formatFullDate as formatDateUtil } from "@renderer/utils/dateUtils";
+import { formatFullDate as formatDateUtil, inputDateToISOIST, inputDateToEndOfDayIST } from "@renderer/utils/dateUtils";
 
 
 
@@ -67,8 +67,8 @@ const StockInTable = ({ productId, unit }: Props) => {
             if (supplier) params.supplier = supplier;
             if (location) params.location = location;
             if (invoiceNo) params.invoiceNo = invoiceNo;
-            if (startDate) params.startDate = startDate;
-            if (endDate) params.endDate = endDate;
+            if (startDate) params.startDate = inputDateToISOIST(startDate);
+            if (endDate) params.endDate = inputDateToEndOfDayIST(endDate);
 
             const res = await api.get(`/products/${productId}/stock-in`, { params });
             setItems(res.data.items);
