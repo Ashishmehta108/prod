@@ -36,6 +36,7 @@ interface StockOutForm {
     productId: string;
     quantity: number | string;
     department: string;
+    issuedBy: string;
     issuedTo: string;
     purpose: string;
     date?: string;
@@ -52,6 +53,7 @@ const EditStockOutModal: React.FC<{
         productId: "",
         quantity: "",
         department: "",
+        issuedBy: "",
         issuedTo: "",
         purpose: "",
         date: ""
@@ -78,6 +80,7 @@ const EditStockOutModal: React.FC<{
                 productId: record.productId._id,
                 quantity: record.quantity,
                 department: record.department || "",
+                issuedBy: record.issuedBy || "",
                 issuedTo: record.issuedTo || "",
                 purpose: record.purpose || "",
                 date: new Date(record.date).toISOString().split('T')[0]
@@ -168,6 +171,14 @@ const EditStockOutModal: React.FC<{
                                 />
                             </div>
                             <div className="col-span-2">
+                                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5 ml-1">Issued By</label>
+                                <input
+                                    className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-400 transition-all shadow-sm"
+                                    value={form.issuedBy}
+                                    onChange={(e) => setForm(f => ({ ...f, issuedBy: e.target.value }))}
+                                />
+                            </div>
+                            <div className="col-span-2">
                                 <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5 ml-1">Purpose / Remarks</label>
                                 <textarea
                                     className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-400 transition-all shadow-sm resize-none"
@@ -220,6 +231,9 @@ const StockOutRecords: React.FC = () => {
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<StockOutRecord | null>(null);
+
+    // Export loading
+    const [exportLoading, setExportLoading] = useState(false);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -294,6 +308,111 @@ const StockOutRecords: React.FC = () => {
         }
     };
 
+    // ─── CSV Export: fetches ALL matching records via dedicated export endpoint ─
+    const handleExportCSV = async () => {
+        try {
+            setExportLoading(true);
+            const res = await api.get("/stock-out/export", {
+                params: {
+                    search: filters.search || undefined,
+                    department: filters.department || undefined,
+                    dateFrom: filters.dateFrom || undefined,
+                    dateTo: filters.dateTo || undefined,
+                },
+            });
+            const allRecords: StockOutRecord[] = res.data?.data || [];
+
+            if (allRecords.length === 0) {
+                toast.info("No records to export.");
+                return;
+            }
+
+            const headers = [
+                "Product Name",
+                "Quantity",
+                "Department",
+                "Issued To",
+                "Issued By",
+                "Purpose",
+                "Date",
+            ];
+
+            const rows = allRecords.map((item) => [
+                item.productId?.name || "",
+                item.quantity.toString(),
+                item.department || "",
+                item.issuedTo || "",
+                item.issuedBy || "",
+                item.purpose || "",
+                new Date(item.date).toLocaleDateString(),
+            ]);
+
+            const csvContent = [
+                headers.join(","),
+                ...rows.map((row) =>
+                    row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+                ),
+            ].join("\n");
+
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            const dateStr = new Date().toISOString().split("T")[0];
+            link.setAttribute("href", url);
+            link.setAttribute("download", `stock-out-records-${dateStr}.csv`);
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            toast.success(`Exported ${allRecords.length} records successfully!`);
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to export records");
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
+    // ── build/download helpers shared by both export variants ──
+    const buildStockOutCSV = (items: StockOutRecord[]) => {
+        const headers = ["Product Name", "Quantity", "Department", "Issued To", "Issued By", "Purpose", "Date"];
+        const rows = items.map((item) => [
+            item.productId?.name || "",
+            item.quantity.toString(),
+            item.department || "",
+            item.issuedTo || "",
+            item.issuedBy || "",
+            item.purpose || "",
+            new Date(item.date).toLocaleDateString(),
+        ]);
+        return [
+            headers.join(","),
+            ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+        ].join("\n");
+    };
+
+    const downloadCSV = (csv: string, filename: string) => {
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = filename;
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    // Export ONLY the current page (instant, from in-memory records)
+    const handleExportPage = () => {
+        if (!records.length) return;
+        const dateStr = new Date().toISOString().split("T")[0];
+        downloadCSV(buildStockOutCSV(records), `stock-out-page${currentPage}-${dateStr}.csv`);
+        toast.success(`Exported ${records.length} records from page ${currentPage}`);
+    };
+
     return (
         <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -303,13 +422,32 @@ const StockOutRecords: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Export This Page */}
                     <button
-                        disabled={dataLoading}
-                        className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 text-neutral-700 text-sm font-semibold rounded-xl hover:bg-neutral-50 transition-all shadow-sm active:scale-95"
+                        onClick={handleExportPage}
+                        disabled={dataLoading || records.length === 0}
+                        title="Export current page only"
+                        className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 text-neutral-700 text-sm font-semibold rounded-xl hover:bg-neutral-50 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <Download size={18} />
-                        Export CSV
+                        <Download size={16} />
+                        This Page
                         <Ripple />
+                    </button>
+
+                    {/* Export All */}
+                    <button
+                        onClick={handleExportCSV}
+                        disabled={exportLoading || dataLoading || totalRecords === 0}
+                        title="Export all matching records"
+                        className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-black transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {exportLoading ? (
+                            <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                            <Download size={16} />
+                        )}
+                        {exportLoading ? "Exporting..." : "Export All"}
+                        <Ripple color="rgba(255,255,255,0.15)" />
                     </button>
                 </div>
             </div>
@@ -386,6 +524,7 @@ const StockOutRecords: React.FC = () => {
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Quantity</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Dept</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">To</th>
+                                    <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">By</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Purpose</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Date</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100 text-right">Actions</th>
@@ -416,6 +555,7 @@ const StockOutRecords: React.FC = () => {
                                         </td>
                                         <td className="py-4 px-6 text-sm text-neutral-600 font-medium">{r.department || "—"}</td>
                                         <td className="py-4 px-6 text-sm text-neutral-600 font-medium">{r.issuedTo || "—"}</td>
+                                        <td className="py-4 px-6 text-sm text-neutral-600 font-medium">{r.issuedBy || "—"}</td>
                                         <td className="py-4 px-6 text-xs text-neutral-400 font-medium">{r.purpose || "—"}</td>
                                         <td className="py-4 px-6 text-xs text-neutral-500 font-medium">{formatDate(r.date)}</td>
 

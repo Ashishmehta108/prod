@@ -228,6 +228,9 @@ const StockInRecords: React.FC = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<StockInRecord | null>(null);
 
+    // Export state
+    const [exportLoading, setExportLoading] = useState(false);
+
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -301,6 +304,69 @@ const StockInRecords: React.FC = () => {
         }
     };
 
+    // ── CSV helpers ──────────────────────────────────────────────────
+    const buildStockInCSV = (items: StockInRecord[]) => {
+        const headers = ["Product Name", "Quantity", "Supplier", "Invoice No", "Location", "Date"];
+        const rows = items.map((item) => [
+            item.productId?.name || "",
+            item.quantity.toString(),
+            item.supplier || "",
+            item.invoiceNo || "",
+            item.location || "",
+            new Date(item.date).toLocaleDateString(),
+        ]);
+        return [
+            headers.join(","),
+            ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+        ].join("\n");
+    };
+
+    const downloadCSV = (csv: string, filename: string) => {
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = filename;
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    // Export only the current page (instant)
+    const handleExportPage = () => {
+        if (!records.length) return;
+        const dateStr = new Date().toISOString().split("T")[0];
+        downloadCSV(buildStockInCSV(records), `stock-in-page${currentPage}-${dateStr}.csv`);
+        toast.success(`Exported ${records.length} records from page ${currentPage}`);
+    };
+
+    // Export ALL matching records via API
+    const handleExportAll = async () => {
+        try {
+            setExportLoading(true);
+            const res = await api.get("/stock-in/export", {
+                params: {
+                    search: filters.search || undefined,
+                    location: filters.location || undefined,
+                    dateFrom: filters.dateFrom || undefined,
+                    dateTo: filters.dateTo || undefined,
+                },
+            });
+            const allRecords: StockInRecord[] = res.data?.data || [];
+            if (!allRecords.length) { toast.info("No records to export."); return; }
+            const dateStr = new Date().toISOString().split("T")[0];
+            downloadCSV(buildStockInCSV(allRecords), `stock-in-all-${dateStr}.csv`);
+            toast.success(`Exported ${allRecords.length} records successfully!`);
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to export records");
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
     return (
         <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -310,13 +376,29 @@ const StockInRecords: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Export This Page */}
                     <button
-                        disabled={dataLoading}
-                        className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 text-neutral-700 text-sm font-semibold rounded-xl hover:bg-neutral-50 transition-all shadow-sm active:scale-95"
+                        onClick={handleExportPage}
+                        disabled={dataLoading || records.length === 0}
+                        title="Export current page only"
+                        className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 text-neutral-700 text-sm font-semibold rounded-xl hover:bg-neutral-50 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <Download size={18} />
-                        Export CSV
+                        <Loader2 size={15} className="hidden" />
+                        <Download size={15} />
+                        This Page
                         <Ripple />
+                    </button>
+
+                    {/* Export ALL */}
+                    <button
+                        onClick={handleExportAll}
+                        disabled={exportLoading || dataLoading || totalRecords === 0}
+                        title="Export all records matching current filters"
+                        className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-black transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {exportLoading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                        {exportLoading ? "Exporting…" : "Export All"}
+                        <Ripple color="rgba(255,255,255,0.15)" />
                     </button>
                 </div>
             </div>

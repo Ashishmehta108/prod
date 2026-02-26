@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import EmptyProductsState from "@renderer/components/EmptyState";
 import { ProductSearchModal } from "../components/ProductSearchModal";
 import Ripple from "../components/shared/Ripple";
+import { useAuth } from "../context/AuthContext";
 
 interface ProductOption {
   id: string;
@@ -25,6 +26,7 @@ interface StockOutForm {
   productId: string;
   quantity: string;
   department: string;
+  issuedBy: string;
   issuedTo: string;
   purpose: string;
   date: string;
@@ -36,6 +38,7 @@ const stockOutSchema = z.object({
     message: "Quantity must be a positive number",
   }),
   department: z.string().trim().min(1, "Department is required"),
+  issuedBy: z.string().trim().min(1, "Issuer name is required"),
   issuedTo: z.string().trim().min(1, "Recipient name is required"),
   purpose: z.string().trim().min(1, "Purpose/Remarks is required"),
   date: z.string().min(1, "Transaction date is required"),
@@ -52,14 +55,23 @@ const StockOut: React.FC = () => {
   const [selectedProductUnit, setSelectedProductUnit] = useState<string>("");
   const [errors, setErrors] = useState<Partial<Record<keyof StockOutForm, string>>>({});
 
+  const { user } = useAuth();
+
   const [form, setForm] = useState<StockOutForm>({
     productId: "",
     quantity: "",
     department: "",
+    issuedBy: user?.username || "",
     issuedTo: "",
     purpose: "",
     date: new Date().toISOString().split('T')[0],
   });
+
+  useEffect(() => {
+    if (user?.username && !form.issuedBy) {
+      setForm(f => ({ ...f, issuedBy: user.username }));
+    }
+  }, [user]);
 
   const load = async () => {
     try {
@@ -150,6 +162,7 @@ const StockOut: React.FC = () => {
           productId: "",
           quantity: "",
           department: "",
+          issuedBy: user?.username || "",
           issuedTo: "",
           purpose: "",
           date: new Date().toISOString().split('T')[0],
@@ -345,6 +358,21 @@ const StockOut: React.FC = () => {
                   onChange={(e) => updateForm("issuedTo", e.target.value)}
                 />
                 {errors.issuedTo && <p className="text-[10px] text-red-500 font-medium ml-1">{errors.issuedTo}</p>}
+              </div>
+
+              {/* Issued By */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                  <User size={13} className="text-neutral-500" />
+                  Issued By / Issuer <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className={`w-full h-10 bg-neutral-50 border ${errors.issuedBy ? 'border-red-500' : 'border-neutral-300'} px-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
+                  placeholder="Issuer name"
+                  value={form.issuedBy}
+                  onChange={(e) => updateForm("issuedBy", e.target.value)}
+                />
+                {errors.issuedBy && <p className="text-[10px] text-red-500 font-medium ml-1">{errors.issuedBy}</p>}
               </div>
             </div>
 

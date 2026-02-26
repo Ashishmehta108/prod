@@ -167,6 +167,77 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET /api/stock-out/export  — returns ALL records for Excel download (no pagination)
+router.get("/export", async (req, res) => {
+  try {
+    const { search, department, dateFrom, dateTo } = req.query;
+    const match: any = {};
+
+    if (department) {
+      match.department = { $regex: department, $options: "i" };
+    }
+
+    if (dateFrom || dateTo) {
+      match.date = {};
+      if (dateFrom) match.date.$gte = new Date(dateFrom as string);
+      if (dateTo) match.date.$lte = new Date(dateTo as string);
+    }
+
+    const pipeline: any[] = [
+      {
+        $lookup: {
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "productId",
+        },
+      },
+      { $unwind: "$productId" },
+    ];
+
+    if (search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { "productId.name": { $regex: search, $options: "i" } },
+            { department: { $regex: search, $options: "i" } },
+            { issuedBy: { $regex: search, $options: "i" } },
+            { issuedTo: { $regex: search, $options: "i" } },
+            { purpose: { $regex: search, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    if (Object.keys(match).length > 0) {
+      pipeline.push({ $match: match });
+    }
+
+    pipeline.push(
+      { $sort: { date: -1 } },
+      {
+        $project: {
+          _id: 1,
+          quantity: 1,
+          department: 1,
+          issuedBy: 1,
+          issuedTo: 1,
+          purpose: 1,
+          date: 1,
+          "productId._id": 1,
+          "productId.name": 1,
+        },
+      }
+    );
+
+    const records = await StockOut.aggregate(pipeline);
+    res.json({ data: records, total: records.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to export stock-out records" });
+  }
+});
+
 router.get("/departments", async (req, res) => {
   try {
     const departments = await StockOut.distinct("department", { department: { $nin: [null, ""] } });

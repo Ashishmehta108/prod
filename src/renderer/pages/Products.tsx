@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Edit, Trash2, X, Plus, Save, QrCode, Download } from "lucide-react";
+import { Package, Edit, Trash2, X, Plus, Save, QrCode, Download, Loader2, FileDown } from "lucide-react";
 import { Gallery } from "iconsax-react";
 import { api } from "@renderer/api/client";
 import { ProductListItem } from "src/utils/types/product.types";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import { ProductsPageSkeleton } from "../components/Skeleton";
+import Ripple from "../components/shared/Ripple";
 
 const ProductsList = () => {
     const navigate = useNavigate();
@@ -44,6 +45,8 @@ const ProductsList = () => {
     const [page, setPage] = useState(1);
     const [limit] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [exportLoading, setExportLoading] = useState(false);
 
     const [filters, setFilters] = useState({
         search: "",
@@ -95,6 +98,7 @@ const ProductsList = () => {
             ]);
             setProducts(res.data.data);
             setTotalPages(res.data.meta.totalPages);
+            setTotalRecords(res.data.meta.total ?? 0);
         } catch (err) {
             console.error(err);
         } finally {
@@ -259,6 +263,75 @@ const ProductsList = () => {
         }));
     };
 
+    // ─── CSV helpers ────────────────────────────────────────────────────
+    const buildCSV = (items: ProductListItem[]) => {
+        const headers = ["Name", "Category", "Unit", "Current Stock", "Min Stock", "Status", "Ref IDs"];
+        const rows = items.map((p) => [
+            p.name,
+            p.category || "",
+            p.unit,
+            p.currentStock.toString(),
+            p.minStock.toString(),
+            p.currentStock <= 0 ? "Out of Stock" : p.currentStock <= p.minStock ? "Low Stock" : "In Stock",
+            p.refIds?.join("; ") || "",
+        ]);
+        return [
+            headers.join(","),
+            ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+        ].join("\n");
+    };
+
+    const downloadCSV = (csv: string, filename: string) => {
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = filename;
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    // Export only the current page (instant, from in-memory)
+    const handleExportPage = () => {
+        if (!products.length) return;
+        const dateStr = new Date().toISOString().split("T")[0];
+        downloadCSV(buildCSV(products), `products-page${page}-${dateStr}.csv`);
+        toast.success(`Exported ${products.length} products from page ${page}`);
+    };
+
+    // Export ALL products matching active filters (API call)
+    const handleExportAll = async () => {
+        try {
+            setExportLoading(true);
+            const params: any = {
+                search: filters.search || undefined,
+                refIdPrefix: filters.refIdPrefix || undefined,
+                category: filters.category || undefined,
+                unit: filters.unit || undefined,
+                createdFrom: filters.createdFrom || undefined,
+                createdTo: filters.createdTo || undefined,
+            };
+            if (filters.stock === "low") params.minStockOnly = true;
+            if (filters.stock === "out") params.outOfStock = true;
+            if (filters.stock === "in") params.inStock = true;
+
+            const res = await api.get("/products/export", { params });
+            const allProducts: ProductListItem[] = res.data?.data || [];
+            if (!allProducts.length) { toast.info("No products to export."); return; }
+            const dateStr = new Date().toISOString().split("T")[0];
+            downloadCSV(buildCSV(allProducts), `products-all-${dateStr}.csv`);
+            toast.success(`Exported ${allProducts.length} products successfully!`);
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to export products");
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
     useEffect(() => {
         setPage(1);
     }, [filters]);
@@ -370,6 +443,30 @@ const ProductsList = () => {
                         className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 active:bg-gray-100"
                     >
                         Clear
+                    </button>
+
+                    {/* Export this page */}
+                    <button
+                        onClick={handleExportPage}
+                        disabled={loading || products.length === 0}
+                        title="Export current page only"
+                        className="relative overflow-hidden h-10 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 active:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                        <Ripple />
+                        <FileDown size={14} />
+                        This Page
+                    </button>
+
+                    {/* Export ALL */}
+                    <button
+                        onClick={handleExportAll}
+                        disabled={exportLoading || loading || totalRecords === 0}
+                        title="Export all products matching current filters"
+                        className="relative overflow-hidden h-10 rounded-lg border border-gray-900 bg-gray-900 text-white px-4 text-xs font-semibold shadow-sm hover:bg-gray-800 active:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                        <Ripple color="rgba(255,255,255,0.15)" />
+                        {exportLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                        {exportLoading ? "Exporting…" : `Export All${totalRecords ? ` (${totalRecords})` : ""}`}
                     </button>
                 </div>
             </div>

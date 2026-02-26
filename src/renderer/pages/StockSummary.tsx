@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, X, SearchCode, ChevronLeft, ChevronRight } from "lucide-react";
-import { Home, Calendar, TrendUp, TrendDown, MinusCirlce, ExportSquare } from "iconsax-react";
+import { Package, X, SearchCode, ChevronLeft, ChevronRight, FileDown, Download } from "lucide-react";
+import { Home, Calendar, TrendUp, TrendDown, MinusCirlce } from "iconsax-react";
 import { api } from "@renderer/api/client";
 import { ProductListItem } from "src/utils/types/product.types";
 import { Skeleton } from "../components/Skeleton";
 import { ProductSearchModal } from "../components/ProductSearchModal";
+import { toast } from "sonner";
+import Ripple from "../components/shared/Ripple";
 
 interface StockSummaryItem {
   productId: string;
@@ -170,41 +172,56 @@ const StockSummary: React.FC = () => {
     setSelectedProductName("");
   };
 
-  const handleExportCSV = () => {
-    const headers = [
-      "Product Name",
-      "Unit",
-      "Stock In (Range)",
-      "Stock Out (Range)",
-      "Current Stock",
-    ];
-
-    const rows = summaryData.map((item) => [
-      item.productName,
-      item.unit,
-      item.totalStockInInRange.toString(),
-      item.totalStockOutInRange.toString(),
-      item.currentAvailableStock.toString(),
-    ]);
-
-    const csvContent = [
+  // ── CSV helpers ──────────────────────────────────────────────────
+  const buildSummaryCSV = (items: StockSummaryItem[]) => {
+    const headers = ["Product Name", "Unit", "Stock In (Range)", "Stock Out (Range)", "Current Stock", "Status"];
+    const rows = items.map((item) => {
+      const product = products.find((p) => p.id === item.productId);
+      const minStock = product?.minStock || 0;
+      const status = item.currentAvailableStock <= 0 ? "Out of Stock" : item.currentAvailableStock <= minStock ? "Low Stock" : "Healthy";
+      return [
+        item.productName,
+        item.unit,
+        item.totalStockInInRange.toString(),
+        item.totalStockOutInRange.toString(),
+        item.currentAvailableStock.toString(),
+        status,
+      ];
+    });
+    return [
       headers.join(","),
-      ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-      ),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
     ].join("\n");
+  };
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const downloadSummaryCSV = (csv: string, filename: string) => {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    const categorySuffix = selectedCategory ? `-${selectedCategory.replace(/\s+/g, "_")}` : "";
-    const dateRange = `${fromDate}_to_${toDate}`;
-    link.setAttribute("href", url);
-    link.setAttribute("download", `stock-summary${categorySuffix}-${dateRange}.csv`);
+    link.href = url;
+    link.download = filename;
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Export only this page's rows (paginatedData slice)
+  const handleExportPage = () => {
+    if (!paginatedData.length) return;
+    const dateRange = `${fromDate}_to_${toDate}`;
+    downloadSummaryCSV(buildSummaryCSV(paginatedData), `stock-summary-page${currentPage}-${dateRange}.csv`);
+    toast.success(`Exported ${paginatedData.length} rows from page ${currentPage}`);
+  };
+
+  // Export ALL rows regardless of pagination
+  const handleExportAll = () => {
+    if (!summaryData.length) return;
+    const categorySuffix = selectedCategory ? `-${selectedCategory.replace(/\s+/g, "_")}` : "";
+    const dateRange = `${fromDate}_to_${toDate}`;
+    downloadSummaryCSV(buildSummaryCSV(summaryData), `stock-summary${categorySuffix}-${dateRange}.csv`);
+    toast.success(`Exported ${summaryData.length} products`);
   };
 
   const getStockBadge = (item: StockSummaryItem) => {
@@ -265,14 +282,31 @@ const StockSummary: React.FC = () => {
               </p>
             </div>
             {summaryData.length > 0 && (
-              <button
-                onClick={handleExportCSV}
-                disabled={loading || summaryData.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-xl hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-              >
-                <ExportSquare size={18} variant="Outline" />
-                Export CSV
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Export This Page */}
+                <button
+                  onClick={handleExportPage}
+                  disabled={loading || paginatedData.length === 0}
+                  title="Export current page only"
+                  className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-neutral-200 text-neutral-700 text-sm font-medium rounded-xl hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  <Ripple />
+                  <FileDown size={16} />
+                  This Page
+                </button>
+
+                {/* Export All */}
+                <button
+                  onClick={handleExportAll}
+                  disabled={loading || summaryData.length === 0}
+                  title="Export all rows (all pages)"
+                  className="relative overflow-hidden inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-xl hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  <Ripple color="rgba(255,255,255,0.15)" />
+                  <Download size={16} />
+                  Export All ({summaryData.length})
+                </button>
+              </div>
             )}
           </div>
           <div className="bg-white rounded-xl border border-neutral-200/80 shadow-sm p-6">

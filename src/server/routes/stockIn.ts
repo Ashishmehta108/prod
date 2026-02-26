@@ -125,6 +125,65 @@ router.get("/", async (req, res) => {
 
 
 
+// GET /api/stock-in/export — returns ALL records for Excel download (no pagination)
+router.get("/export", async (req, res) => {
+  try {
+    const { search, supplier, location, dateFrom, dateTo } = req.query;
+    const pipeline: any[] = [];
+
+    const match: any = {};
+    if (supplier) match.supplier = { $regex: supplier as string, $options: "i" };
+    if (location) match.location = { $regex: location as string, $options: "i" };
+    if (dateFrom || dateTo) {
+      match.date = {};
+      if (dateFrom) match.date.$gte = new Date(dateFrom as string);
+      if (dateTo) match.date.$lte = new Date(dateTo as string);
+      if (!Object.keys(match.date).length) delete match.date;
+    }
+    if (Object.keys(match).length) pipeline.push({ $match: match });
+
+    pipeline.push(
+      { $lookup: { from: "products", localField: "productId", foreignField: "_id", as: "product" } },
+      { $unwind: "$product" }
+    );
+
+    if (search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { "product.name": { $regex: search, $options: "i" } },
+            { supplier: { $regex: search, $options: "i" } },
+            { invoiceNo: { $regex: search, $options: "i" } },
+            { location: { $regex: search, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    pipeline.push(
+      { $sort: { date: -1 } },
+      {
+        $project: {
+          _id: 1,
+          quantity: 1,
+          supplier: 1,
+          invoiceNo: 1,
+          location: 1,
+          date: 1,
+          productId: { _id: "$product._id", name: "$product.name", image: "$product.image" },
+        },
+      }
+    );
+
+    const records = await StockIn.aggregate(pipeline);
+    res.json({ data: records, total: records.length });
+  } catch (err) {
+    console.error("StockIn export error:", err);
+    res.status(500).json({ error: "Failed to export stock-in records" });
+  }
+});
+
+
 // POST /api/stock-in
 router.post("/", async (req, res) => {
   try {

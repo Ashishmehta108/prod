@@ -22,6 +22,35 @@ router.get("/categories", auth, async (req, res) => {
   }
 });
 
+// GET /api/products/low-stock/export - returns ALL low/out-of-stock products (no pagination cap) for Excel export
+router.get("/low-stock/export", auth, async (req, res) => {
+  try {
+    const pipeline: any[] = [
+      // Match products where stockQuantity <= minStock
+      { $match: { $expr: { $lte: ["$stockQuantity", "$minStock"] } } },
+      { $sort: { stockQuantity: 1 } },
+      {
+        $project: {
+          id: "$_id",
+          name: 1,
+          category: 1,
+          unit: 1,
+          image: 1,
+          refIds: 1,
+          machineName: 1,
+          minStock: 1,
+          currentStock: "$stockQuantity",
+        },
+      },
+    ];
+    const data = await Product.aggregate(pipeline);
+    res.json({ data, total: data.length });
+  } catch (err) {
+    console.error("Low stock export error:", err);
+    res.status(500).json({ error: "Failed to export low stock products" });
+  }
+});
+
 router.get("/", auth, async (req, res) => {
   try {
     const isPaginated = !!(req.query.page || req.query.limit);
@@ -194,6 +223,59 @@ router.post("/", auth, adminOnly, uploadSingleImage, async (req: any, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create product" });
+  }
+});
+
+// GET /api/products/export — returns ALL products with applied filters, no pagination, for Excel download
+router.get("/export", auth, async (req, res) => {
+  try {
+    const {
+      search, category, unit, machineName, refIdPrefix,
+      minStockOnly, inStock, outOfStock, createdFrom, createdTo,
+    } = req.query;
+
+    const baseMatch: any = {};
+    if (category) baseMatch.category = category as string;
+    if (unit) baseMatch.unit = unit as string;
+    if (machineName) baseMatch.machineName = machineName as string;
+    if (createdFrom || createdTo) {
+      baseMatch.createdAt = {};
+      if (createdFrom) baseMatch.createdAt.$gte = new Date(createdFrom as string);
+      if (createdTo) baseMatch.createdAt.$lte = new Date(createdTo as string);
+    }
+    if (search) {
+      const regex = new RegExp(search as string, "i");
+      baseMatch.$or = [
+        { name: regex }, { category: regex }, { machineName: regex },
+        { refIds: { $elemMatch: { $regex: `^${search}`, $options: "i" } } },
+      ];
+    }
+    if (refIdPrefix) {
+      baseMatch.refIds = { $elemMatch: { $regex: `^${refIdPrefix}`, $options: "i" } };
+    }
+
+    const pipeline: any[] = [{ $match: baseMatch }];
+    const stockMatch: any = {};
+    if (minStockOnly === "true") stockMatch.$expr = { $lte: ["$stockQuantity", "$minStock"] };
+    if (inStock === "true") stockMatch.stockQuantity = { $gt: 0 };
+    if (outOfStock === "true") stockMatch.stockQuantity = { $lte: 0 };
+    if (Object.keys(stockMatch).length) pipeline.push({ $match: stockMatch });
+
+    pipeline.push(
+      { $sort: { createdAt: -1 } },
+      {
+        $project: {
+          id: "$_id", name: 1, category: 1, unit: 1, image: 1,
+          refIds: 1, machineName: 1, minStock: 1, currentStock: "$stockQuantity",
+        },
+      }
+    );
+
+    const data = await Product.aggregate(pipeline);
+    res.json({ data, total: data.length });
+  } catch (err) {
+    console.error("Products export error:", err);
+    res.status(500).json({ error: "Failed to export products" });
   }
 });
 

@@ -26,6 +26,8 @@
     "seed-stock": "ts-node src/server/scripts/seedStock.ts",
     "seed-products": "ts-node src/server/scripts/seedProducts.ts",
     "migrate-stock": "ts-node src/server/scripts/migrateStock.ts",
+    "migrate-categories": "ts-node src/server/scripts/migrateCategories.ts",
+    "migrate-images": "ts-node src/server/scripts/migrateImages.ts",
     "test-print": "ts-node src/server/scripts/testPrint.ts",
     "lint": "echo \"no lint configured\""
   },
