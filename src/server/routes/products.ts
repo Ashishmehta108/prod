@@ -26,8 +26,8 @@ router.get("/categories", auth, async (req, res) => {
 router.get("/low-stock/export", auth, async (req, res) => {
   try {
     const pipeline: any[] = [
-      // Match products where stockQuantity <= minStock
-      { $match: { $expr: { $lte: ["$stockQuantity", "$minStock"] } } },
+      // Only include products with a real minimum threshold and strictly below it
+      { $match: { $expr: { $and: [{ $gt: ["$minStock", 0] }, { $lt: ["$stockQuantity", "$minStock"] }] } } },
       { $sort: { stockQuantity: 1 } },
       {
         $project: {
@@ -117,7 +117,14 @@ router.get("/", auth, async (req, res) => {
     const stockMatch: any = {};
 
     if (minStockOnly === "true") {
-      stockMatch.$expr = { $lte: ["$stockQuantity", "$minStock"] };
+      // Only include products that have a real minimum threshold (minStock > 0)
+      // AND whose stock is strictly below that threshold
+      stockMatch.$expr = {
+        $and: [
+          { $gt: ["$minStock", 0] },
+          { $lt: ["$stockQuantity", "$minStock"] },
+        ],
+      };
     }
 
     if (inStock === "true") {
@@ -256,7 +263,12 @@ router.get("/export", auth, async (req, res) => {
 
     const pipeline: any[] = [{ $match: baseMatch }];
     const stockMatch: any = {};
-    if (minStockOnly === "true") stockMatch.$expr = { $lte: ["$stockQuantity", "$minStock"] };
+    if (minStockOnly === "true") stockMatch.$expr = {
+      $and: [
+        { $gt: ["$minStock", 0] },
+        { $lt: ["$stockQuantity", "$minStock"] },
+      ],
+    };
     if (inStock === "true") stockMatch.stockQuantity = { $gt: 0 };
     if (outOfStock === "true") stockMatch.stockQuantity = { $lte: 0 };
     if (Object.keys(stockMatch).length) pipeline.push({ $match: stockMatch });

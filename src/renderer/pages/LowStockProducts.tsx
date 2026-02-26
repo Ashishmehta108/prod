@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import Ripple from "../components/shared/Ripple";
 import { getISTDateString } from "../utils/dateUtils";
 
-const ITEMS_PER_PAGE = 15;
+const DEFAULT_ITEMS_PER_PAGE = 15;
 
 const LowStockProducts: React.FC = () => {
   const navigate = useNavigate();
@@ -22,19 +22,27 @@ const LowStockProducts: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalOutOfStock, setTotalOutOfStock] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
+
+  // Track if a page change is in progress so we can preserve scroll position
+  const isPaginatingRef = React.useRef(false);
 
   useEffect(() => {
     loadProducts(currentPage);
-  }, [currentPage]);
+  }, [currentPage, itemsPerPage]);
 
   const loadProducts = async (page: number) => {
+    // Save the main scroll container's position before the skeleton replaces the table
+    const mainEl = document.querySelector("main") as HTMLElement | null;
+    const savedScrollTop = isPaginatingRef.current ? mainEl?.scrollTop ?? 0 : 0;
+
     try {
       setLoading(true);
       const res = await api.get("/products", {
         params: {
           minStockOnly: true,
           page,
-          limit: ITEMS_PER_PAGE,
+          limit: itemsPerPage,
         },
       });
       const data = res.data;
@@ -63,6 +71,13 @@ const LowStockProducts: React.FC = () => {
       toast.error("Failed to load low stock products");
     } finally {
       setLoading(false);
+      // Restore scroll after DOM updates with new data
+      if (isPaginatingRef.current && mainEl) {
+        requestAnimationFrame(() => {
+          mainEl.scrollTop = savedScrollTop;
+        });
+      }
+      isPaginatingRef.current = false;
     }
   };
 
@@ -130,6 +145,7 @@ const LowStockProducts: React.FC = () => {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
+      isPaginatingRef.current = true;
       setCurrentPage(newPage);
     }
   };
@@ -297,7 +313,7 @@ const LowStockProducts: React.FC = () => {
                     <Skeleton key={i} className="h-4 flex-1" />
                   ))}
                 </div>
-                {Array.from({ length: ITEMS_PER_PAGE }).map((_, i) => (
+                {Array.from({ length: itemsPerPage }).map((_, i) => (
                   <div
                     key={i}
                     className="flex space-x-4 py-4 border-b border-neutral-100 last:border-0"
@@ -424,54 +440,70 @@ const LowStockProducts: React.FC = () => {
               </div>
 
               {/* Pagination Strip */}
-              {totalPages > 1 && (
-                <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50/30 flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest tabular-nums font-mono">
-                    Showing{" "}
-                    {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalRecords)}
-                    –{Math.min(currentPage * ITEMS_PER_PAGE, totalRecords)} of{" "}
-                    {totalRecords} Products
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="relative overflow-hidden p-2 rounded-xl border border-neutral-200 bg-white disabled:opacity-30 hover:bg-neutral-50 transition-colors shadow-sm active:scale-95"
-                    >
-                      <ChevronLeft size={16} />
-                      <Ripple />
-                    </button>
-                    <div className="flex gap-1.5 mx-2">
-                      {getPageNumbers().map((page, i) =>
-                        page === "..." ? (
-                          <span
-                            key={`dots-${i}`}
-                            className="min-w-[32px] h-8 flex items-center justify-center text-[11px] text-neutral-400"
-                          >
-                            …
-                          </span>
-                        ) : (
-                          <button
-                            key={page}
-                            onClick={() => handlePageChange(page as number)}
-                            className={`min-w-[32px] h-8 text-[11px] font-bold rounded-lg transition-all ${currentPage === page
-                              ? "bg-neutral-900 text-white shadow-md"
-                              : "text-neutral-500 hover:bg-white border border-transparent hover:border-neutral-200"
-                              }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      )}
+              {totalPages >= 1 && totalRecords > 0 && (
+                <div className="px-5 py-4 border-t border-neutral-200/60 bg-neutral-50/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-neutral-600 font-medium">
+                        Items per page:
+                      </span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 text-[11px] bg-white border border-neutral-200 rounded focus:outline-none focus:ring-2 focus:ring-neutral-300 text-neutral-900"
+                      >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
                     </div>
-                    <button
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                      className="relative overflow-hidden p-2 rounded-xl border border-neutral-200 bg-white disabled:opacity-30 hover:bg-neutral-50 transition-colors shadow-sm active:scale-95"
-                    >
-                      <ChevronRight size={16} />
-                      <Ripple />
-                    </button>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-neutral-600 font-medium">
+                        {Math.min((currentPage - 1) * itemsPerPage + 1, totalRecords)}–{Math.min(currentPage * itemsPerPage, totalRecords)} of {totalRecords}
+                      </span>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className="p-1.5 rounded hover:bg-neutral-200 border border-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="Previous page"
+                        >
+                          <ChevronLeft size={14} className="text-neutral-900" />
+                        </button>
+
+                        {getPageNumbers().map((page, idx) =>
+                          page === "..." ? (
+                            <span key={`ellipsis-${idx}`} className="px-2 text-neutral-500">...</span>
+                          ) : (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page as number)}
+                              className={`min-w-[28px] h-7 px-2 text-[11px] font-medium rounded transition-colors ${currentPage === page
+                                ? 'bg-neutral-900 text-white'
+                                : 'hover:bg-neutral-200 border border-neutral-200 text-neutral-900'
+                                }`}
+                            >
+                              {page}
+                            </button>
+                          )
+                        )}
+
+                        <button
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className="p-1.5 rounded hover:bg-neutral-200 border border-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="Next page"
+                        >
+                          <ChevronRight size={14} className="text-neutral-900" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

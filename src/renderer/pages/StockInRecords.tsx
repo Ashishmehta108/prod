@@ -247,7 +247,14 @@ const StockInRecords: React.FC = () => {
         dateTo: "",
     });
 
+    // Track if page change is in progress to preserve scroll position
+    const isPaginatingRef = React.useRef(false);
+
     const load = async () => {
+        // Save the main scroll container's scroll position before loading
+        const mainEl = document.querySelector("main") as HTMLElement | null;
+        const savedScrollTop = isPaginatingRef.current ? mainEl?.scrollTop ?? 0 : 0;
+
         try {
             setDataLoading(true);
             const [recRes, locRes] = await Promise.all([
@@ -272,6 +279,13 @@ const StockInRecords: React.FC = () => {
             toast.error("Failed to load records");
         } finally {
             setDataLoading(false);
+            // Restore scroll position after data loads in (next tick so DOM has updated)
+            if (isPaginatingRef.current && mainEl) {
+                requestAnimationFrame(() => {
+                    mainEl.scrollTop = savedScrollTop;
+                });
+            }
+            isPaginatingRef.current = false;
         }
     };
 
@@ -303,8 +317,34 @@ const StockInRecords: React.FC = () => {
 
     const handlePageChange = (newPage: number) => {
         if (newPage >= 1 && newPage <= totalPages) {
+            isPaginatingRef.current = true;
             setCurrentPage(newPage);
         }
+    };
+
+    const getPageNumbers = () => {
+        const pages: (number | string)[] = [];
+        const showMax = 5;
+        if (totalPages <= showMax) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            if (currentPage <= 3) {
+                for (let i = 1; i <= 4; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+            } else if (currentPage >= totalPages - 2) {
+                pages.push(1);
+                pages.push('...');
+                for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+            } else {
+                pages.push(1);
+                pages.push('...');
+                for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+            }
+        }
+        return pages;
     };
 
     // ── CSV helpers ──────────────────────────────────────────────────
@@ -535,38 +575,69 @@ const StockInRecords: React.FC = () => {
                 </div>
 
                 {/* Pagination Strip */}
-                <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50/30 flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest tabular-nums font-mono">
-                        Showing {Math.min((currentPage - 1) * itemsPerPage + 1, totalRecords)}-{Math.min(currentPage * itemsPerPage, totalRecords)} of {totalRecords} Records
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => handlePageChange(currentPage - 1)}
-                            disabled={currentPage === 1}
-                            className="relative overflow-hidden p-2 rounded-xl border border-neutral-200 bg-white disabled:opacity-30 hover:bg-neutral-50 transition-colors shadow-sm active:scale-95"
-                        >
-                            <ChevronLeft size={16} />
-                            <Ripple />
-                        </button>
-                        <div className="flex gap-1.5 mx-2">
-                            {[...Array(totalPages)].map((_, i) => (
-                                <button
-                                    key={i + 1}
-                                    onClick={() => handlePageChange(i + 1)}
-                                    className={`min-w-[32px] h-8 text-[11px] font-bold rounded-lg transition-all ${currentPage === i + 1 ? 'bg-neutral-900 text-white shadow-md' : 'text-neutral-500 hover:bg-white border border-transparent hover:border-neutral-200'}`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
+                <div className="px-5 py-4 border-t border-neutral-200/60 bg-neutral-50/50">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <span className="text-[11px] text-neutral-600 font-medium">
+                                Items per page:
+                            </span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => {
+                                    setItemsPerPage(Number(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                                className="px-2 py-1 text-[11px] bg-white border border-neutral-200 rounded focus:outline-none focus:ring-2 focus:ring-neutral-300 text-neutral-900"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
                         </div>
-                        <button
-                            onClick={() => handlePageChange(currentPage + 1)}
-                            disabled={currentPage === totalPages}
-                            className="relative overflow-hidden p-2 rounded-xl border border-neutral-200 bg-white disabled:opacity-30 hover:bg-neutral-50 transition-colors shadow-sm active:scale-95"
-                        >
-                            <ChevronRight size={16} />
-                            <Ripple />
-                        </button>
+
+                        <div className="flex items-center gap-3">
+                            <span className="text-[11px] text-neutral-600 font-medium">
+                                {Math.min((currentPage - 1) * itemsPerPage + 1, totalRecords)}–{Math.min(currentPage * itemsPerPage, totalRecords)} of {totalRecords}
+                            </span>
+
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="p-1.5 rounded hover:bg-neutral-200 border border-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Previous page"
+                                >
+                                    <ChevronLeft size={14} className="text-neutral-900" />
+                                </button>
+
+                                {getPageNumbers().map((page, idx) =>
+                                    page === '...' ? (
+                                        <span key={`ellipsis-${idx}`} className="px-2 text-neutral-500">...</span>
+                                    ) : (
+                                        <button
+                                            key={page}
+                                            onClick={() => handlePageChange(page as number)}
+                                            className={`min-w-[28px] h-7 px-2 text-[11px] font-medium rounded transition-colors ${currentPage === page
+                                                ? 'bg-neutral-900 text-white'
+                                                : 'hover:bg-neutral-200 border border-neutral-200 text-neutral-900'
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    )
+                                )}
+
+                                <button
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className="p-1.5 rounded hover:bg-neutral-200 border border-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Next page"
+                                >
+                                    <ChevronRight size={14} className="text-neutral-900" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
