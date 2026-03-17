@@ -4,9 +4,11 @@ import { IProduct } from "./Product";
 export interface IStockIn extends Document {
   productId: IProduct["_id"];
   quantity: number;
+  rate?: number;
   supplier?: string;
   invoiceNo?: string;
   location?: string;
+  amount?: number;
   date: Date;
 }
 
@@ -14,9 +16,11 @@ const StockInSchema = new Schema<IStockIn>(
   {
     productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
     quantity: { type: Number, required: true },
+    rate: { type: Number },
     supplier: { type: String },
     invoiceNo: { type: String },
     location: { type: String },
+    amount: { type: Number },
     date: { type: Date, default: Date.now }
   },
   { timestamps: true }

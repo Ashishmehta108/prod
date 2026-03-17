@@ -89,11 +89,14 @@ router.get("/", async (req, res) => {
                 supplier: 1,
                 invoiceNo: 1,
                 location: 1,
+                amount: 1,
+                rate: 1,
                 date: 1,
                 productId: {
                   _id: "$product._id",
                   name: "$product.name",
                   image: "$product.image",
+                  unit: "$product.unit",
                 },
               },
             },
@@ -169,8 +172,10 @@ router.get("/export", async (req, res) => {
           supplier: 1,
           invoiceNo: 1,
           location: 1,
+          amount: 1,
+          rate: 1,
           date: 1,
-          productId: { _id: "$product._id", name: "$product.name", image: "$product.image" },
+          productId: { _id: "$product._id", name: "$product.name", image: "$product.image", unit: "$product.unit" },
         },
       }
     );
@@ -187,7 +192,7 @@ router.get("/export", async (req, res) => {
 // POST /api/stock-in
 router.post("/", async (req, res) => {
   try {
-    const { productId, quantity, supplier, invoiceNo, location, date } =
+    const { productId, quantity, supplier, invoiceNo, location, amount, rate, date } =
       req.body;
 
     if (!productId || !quantity) {
@@ -204,6 +209,8 @@ router.post("/", async (req, res) => {
       supplier,
       invoiceNo,
       location,
+      amount: amount !== undefined && amount !== null && amount !== "" ? Number(amount) : undefined,
+      rate: rate !== undefined && rate !== null && rate !== "" ? Number(rate) : undefined,
       date: date ? new Date(date) : undefined
     });
 
@@ -221,7 +228,7 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { quantity, supplier, invoiceNo, location, date } = req.body;
+    const { quantity, supplier, invoiceNo, location, amount, rate, date } = req.body;
 
     const record = await StockIn.findById(id);
     if (!record) return res.status(404).json({ error: "Record not found" });
@@ -243,6 +250,14 @@ router.put("/:id", async (req, res) => {
     if (supplier !== undefined) record.supplier = supplier;
     if (invoiceNo !== undefined) record.invoiceNo = invoiceNo;
     if (location !== undefined) record.location = location;
+    if (amount !== undefined) {
+      record.amount =
+        amount === null || amount === "" ? undefined : Number(amount);
+    }
+    if (rate !== undefined) {
+      record.rate =
+        rate === null || rate === "" ? undefined : Number(rate);
+    }
     if (date !== undefined) record.date = new Date(date);
 
     await record.save(); // This triggers pre('save') and post('save') hooks for stock update

@@ -29,6 +29,8 @@ interface StockInForm {
   supplier: string;
   invoiceNo: string;
   location: string;
+  rate: string;
+  amount: string;
   date: string;
 }
 
@@ -37,6 +39,18 @@ const stockInSchema = z.object({
   quantity: z.string().min(1, "Quantity is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Quantity must be a positive number",
   }),
+  rate: z
+    .string()
+    .optional()
+    .refine((val) => val === undefined || val === "" || (!isNaN(Number(val)) && Number(val) >= 0), {
+      message: "Rate must be a valid number",
+    }),
+  amount: z
+    .string()
+    .optional()
+    .refine((val) => val === undefined || val === "" || (!isNaN(Number(val)) && Number(val) >= 0), {
+      message: "Amount must be a valid number",
+    }),
   supplier: z.string().trim().min(1, "Supplier name is required"),
   invoiceNo: z.string().trim().min(1, "Invoice/Reference number is required"),
   location: z.string().trim().min(1, "Storage location is required"),
@@ -60,6 +74,8 @@ const StockIn: React.FC = () => {
     supplier: "",
     invoiceNo: "",
     location: "",
+    rate: "",
+    amount: "",
     date: getTodayISTForInput(),
   });
 
@@ -84,7 +100,20 @@ const StockIn: React.FC = () => {
   }, []);
 
   const updateForm = (key: keyof StockInForm, value: string) => {
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((f) => {
+      const nextForm = { ...f, [key]: value };
+      
+      // Auto-calculate amount if rate or quantity changes
+      if (key === "rate" || key === "quantity") {
+        const r = key === "rate" ? Number(value) : Number(f.rate);
+        const q = key === "quantity" ? Number(value) : Number(f.quantity);
+        if (!isNaN(r) && !isNaN(q) && r > 0 && q > 0) {
+          nextForm.amount = (r * q).toFixed(2);
+        }
+      }
+      
+      return nextForm;
+    });
     if (errors[key]) {
       setErrors((prev) => {
         const next = { ...prev };
@@ -105,6 +134,13 @@ const StockIn: React.FC = () => {
       .then((res) => {
         setSelectedProductStock(res.data.currentStock ?? null);
         setSelectedProductUnit(res.data.unit ?? "");
+        // Auto-fill location from product master storage location if user hasn't typed anything
+        const storageLocation = res.data.storageLocation;
+        setForm((f) => {
+          if (f.location && f.location.trim().length > 0) return f;
+          if (!storageLocation || String(storageLocation).trim().length === 0) return f;
+          return { ...f, location: String(storageLocation) };
+        });
       })
       .catch((err) => {
         console.error("Failed to fetch product stock:", err);
@@ -137,7 +173,9 @@ const StockIn: React.FC = () => {
     const stockInPromise = api.post("/stock-in", {
       ...form,
       date: inputDateToISOIST(form.date),
-      quantity: Number(form.quantity)
+      quantity: Number(form.quantity),
+      rate: form.rate === "" ? undefined : Number(form.rate),
+      amount: form.amount === "" ? undefined : Number(form.amount),
     });
 
     toast.promise(stockInPromise, {
@@ -149,6 +187,8 @@ const StockIn: React.FC = () => {
           supplier: "",
           invoiceNo: "",
           location: "",
+          rate: "",
+          amount: "",
           date: getTodayISTForInput(),
         });
         setSelectedProductStock(null);
@@ -339,6 +379,40 @@ const StockIn: React.FC = () => {
                   onChange={(e) => updateForm("location", e.target.value)}
                 />
                 {errors.location && <p className="text-[10px] text-red-500 font-medium ml-1">{errors.location}</p>}
+              </div>
+
+              {/* Rate per Unit */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                  <FileText size={13} className="text-neutral-500" />
+                  Rate per {selectedProductUnit || 'Unit'}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className={`w-full h-10 bg-neutral-50 border ${errors.rate ? 'border-red-500' : 'border-neutral-300'} px-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
+                  placeholder="Enter rate per unit"
+                  value={form.rate}
+                  onChange={(e) => updateForm("rate", e.target.value)}
+                />
+                {errors.rate && <p className="text-[10px] text-red-500 font-medium ml-1">{errors.rate}</p>}
+              </div>
+
+              {/* Total Amount */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                  <FileText size={13} className="text-neutral-500" />
+                  Total Amount
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className={`w-full h-10 bg-neutral-50 border ${errors.amount ? 'border-red-500' : 'border-neutral-300'} px-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
+                  placeholder="Enter total amount"
+                  value={form.amount}
+                  onChange={(e) => updateForm("amount", e.target.value)}
+                />
+                {errors.amount && <p className="text-[10px] text-red-500 font-medium ml-1">{errors.amount}</p>}
               </div>
 
               {/* Transaction Date */}

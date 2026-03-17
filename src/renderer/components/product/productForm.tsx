@@ -10,16 +10,22 @@ export default function ProductForm() {
   const [refIdInput, setRefIdInput] = useState("");
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+
   const load = () => {
-    Promise.all([
-      api.get<ProductListItem[]>("/products"),
-      api.get("/categories")
-    ])
-      .then(([prodRes, catRes]) => {
-        setProducts(prodRes.data);
-        setCategories(catRes.data);
-      })
-      .catch((err) => console.error(err));
+    
+// inside Promise.all:
+Promise.all([
+  api.get<ProductListItem[]>("/products"),
+  api.get("/categories"),
+  api.get("/units"),
+])
+  .then(([prodRes, catRes, unitRes]) => {
+    setProducts(prodRes.data);
+    setCategories(catRes.data);
+    setUnits(unitRes.data);
+  })
+  .catch((err) => console.error(err));
   };
 
   useEffect(() => {
@@ -33,6 +39,7 @@ export default function ProductForm() {
     minStock: "",
     refIds: [] as string[],
     machineName: "",
+    storageLocation: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -59,6 +66,7 @@ export default function ProductForm() {
     formData.append("minStock", form.minStock.toString());
     formData.append("machineName", form.machineName || "");
     formData.append("refIds", JSON.stringify(form.refIds));
+    formData.append("storageLocation", form.storageLocation || "");
 
     if (form.image instanceof File) {
       formData.append("image", form.image);
@@ -82,6 +90,7 @@ export default function ProductForm() {
           image: null,
           machineName: "",
           refIds: [],
+          storageLocation: "",
         });
 
         setRefIdInput("");
@@ -306,16 +315,31 @@ export default function ProductForm() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+          <div>
+  <label className="block text-xs font-medium text-gray-700 mb-2">
+    Unit Type
+  </label>
+  <select
+    className="form-input w-full bg-neutral-50 text-neutral-900 border border-gray-200 rounded-lg px-4 py-2.5 text-sm transition-all"
+    value={form.unit}
+    onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+  >
+    <option value="">Select Unit</option>
+    {units.map((u) => (
+      <option key={u._id} value={u.name}>{u.name}</option>
+    ))}
+  </select>
+</div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-2">
-                Unit Type
+                Storage Location
               </label>
               <input
-                className="form-input w-full  bg-neutral-50 text-neutral-900 border border-gray-200 rounded-lg px-4 py-2.5 text-sm transition-all"
-                placeholder="pcs, kg, L"
-                value={form.unit}
+                className="form-input w-full bg-neutral-50 text-neutral-900 border border-gray-200 rounded-lg px-4 py-2.5 text-sm transition-all"
+                placeholder="e.g. Rack A, Bin 4"
+                value={form.storageLocation}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, unit: e.target.value }))
+                  setForm((f) => ({ ...f, storageLocation: e.target.value }))
                 }
               />
             </div>

@@ -44,6 +44,7 @@ const allItems: SidebarItem[] = [
       { id: "products-all", label: "All Products", icon: ClipboardText },
       { id: "products-add", label: "Add Product", icon: AddCircle },
       { id: "products-categories", label: "Categories", icon: RefreshCircle },
+      { id: "products-units", label: "Units", icon: RefreshCircle },
     ],
   },
   {
@@ -187,7 +188,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onChangePage }) => {
           <button
             type="button"
             onClick={() => setIsCollapsed((prev) => !prev)}
-            className="hidden h-8 w-8 items-center justify-center rounded-lg transition-all hover:bg-neutral-100 active:scale-95 lg:flex"
+            className="hidden h-8 w-8 items-center justify-center rounded-lg transition-all hover:bg-transparent active:scale-95 lg:flex"
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <MenuIcon size={17} className="text-neutral-600" />
@@ -265,7 +266,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onChangePage }) => {
                       ? "bg-neutral-100 text-neutral-900 border border-neutral-300"
                       : isActive && hasActiveChild
                         ? "text-neutral-900 font-semibold"
-                        : "text-neutral-600 hover:bg-neutral-200/60 hover:text-neutral-900"
+                        : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                     }
                 ${isCollapsed ? "lg:justify-center lg:px-2" : ""}
           `}
@@ -277,7 +278,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onChangePage }) => {
                         ? " text-neutral-900 border-none  border-neutral-200"
                         : isActive && hasActiveChild
                           ? "bg-neutral-100  border-none text-neutral-900"
-                          : "group-hover:bg-neutral-100 text-neutral-600"
+                          : "group-hover:bg-transparent  text-neutral-600"
                       }
             `}
                   >
@@ -319,7 +320,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onChangePage }) => {
                     text-[12.5px] font-medium transition-all duration-150
                     ${subActive
                               ? "bg-neutral-100 text-neutral-900 border border-neutral-300"
-                              : "text-neutral-600 hover:bg-neutral-200/60 hover:text-neutral-900"
+                              : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                             }
                   `}
                         >

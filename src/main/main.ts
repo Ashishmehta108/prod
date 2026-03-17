@@ -128,6 +128,34 @@ function createWindow() {
     mainWindow?.show();
   });
 
+  // Lock zoom so font sizes don't change unexpectedly (Ctrl+/-/wheel)
+  mainWindow.webContents.on("did-finish-load", async () => {
+    try {
+      mainWindow?.webContents.setZoomFactor(1);
+      await mainWindow?.webContents.setVisualZoomLevelLimits(1, 1);
+    } catch (e) {
+      console.warn("[Main] Failed to lock zoom:", e);
+    }
+  });
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    const ctrlOrCmd = input.control || input.meta;
+    if (!ctrlOrCmd) return;
+
+    // Block common zoom shortcuts
+    const key = (input.key || "").toLowerCase();
+    if (key === "+" || key === "=" || key === "-" || key === "0") {
+      event.preventDefault();
+      return;
+    }
+
+    // Block ctrl/cmd + mouse wheel zoom
+    if (input.type === "mouseWheel") {
+      event.preventDefault();
+      return;
+    }
+  });
+
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();

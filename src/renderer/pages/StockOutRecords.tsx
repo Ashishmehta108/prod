@@ -419,9 +419,10 @@ const StockOutRecords: React.FC = () => {
 
     // ── build/download helpers shared by both export variants ──
     const buildStockOutCSV = (items: StockOutRecord[]) => {
-        const headers = ["Product Name", "Quantity", "Department", "Issued To", "Issued By", "Purpose", "Date"];
+        const headers = ["Product Name", "Unit", "Quantity", "Department", "Issued To", "Issued By", "Purpose", "Date"];
         const rows = items.map((item) => [
             item.productId?.name || "",
+            item.productId?.unit || "",
             item.quantity.toString(),
             item.department || "",
             item.issuedTo || "",
@@ -457,7 +458,7 @@ const StockOutRecords: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Stock Out Records</h1>

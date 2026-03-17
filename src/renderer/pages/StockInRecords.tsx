@@ -22,11 +22,13 @@ import Ripple from "../components/shared/Ripple";
 
 interface StockInRecord {
     _id: string;
-    productId: { _id: string; name: string; image?: string };
+    productId: { _id: string; name: string; image?: string; unit?: string };
     quantity: number;
     supplier?: string;
     invoiceNo?: string;
     location?: string;
+    rate?: number;
+    amount?: number;
     date: string;
 }
 
@@ -36,6 +38,8 @@ interface StockInForm {
     supplier: string;
     invoiceNo: string;
     location: string;
+    rate: number | string;
+    amount: number | string;
     date?: string;
 }
 
@@ -52,6 +56,8 @@ const EditStockInModal: React.FC<{
         supplier: "",
         invoiceNo: "",
         location: "",
+        rate: "",
+        amount: "",
         date: ""
     });
     const [supplierSuggestions, setSupplierSuggestions] = useState<string[]>([]);
@@ -78,6 +84,8 @@ const EditStockInModal: React.FC<{
                 supplier: record.supplier || "",
                 invoiceNo: record.invoiceNo || "",
                 location: record.location || "",
+                rate: record.rate ?? "",
+                amount: record.amount ?? "",
                 date: formatDateForInput(record.date)
             });
         }
@@ -95,6 +103,8 @@ const EditStockInModal: React.FC<{
         try {
             await api.put(`/stock-in/${record._id}`, {
                 ...form,
+                rate: form.rate === "" ? undefined : Number(form.rate),
+                amount: form.amount === "" ? undefined : Number(form.amount),
                 date: form.date ? inputDateToISOIST(form.date) : undefined,
             });
             toast.success("Record updated successfully");
@@ -129,7 +139,16 @@ const EditStockInModal: React.FC<{
                                 required
                                 className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-400 transition-all shadow-inner-subtle"
                                 value={form.quantity}
-                                onChange={(e) => setForm(f => ({ ...f, quantity: e.target.value }))}
+                                onChange={(e) => {
+                                    const qty = e.target.value;
+                                    setForm(f => {
+                                        const next = { ...f, quantity: qty };
+                                        if (next.rate !== "" && qty !== "") {
+                                            next.amount = (Number(next.rate) * Number(qty)).toFixed(2);
+                                        }
+                                        return next;
+                                    });
+                                }}
                             />
                         </div>
 
@@ -182,6 +201,37 @@ const EditStockInModal: React.FC<{
                                     className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-400 transition-all shadow-sm"
                                     value={form.location}
                                     onChange={(e) => setForm(f => ({ ...f, location: e.target.value }))}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5 ml-1">Rate</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-400 transition-all shadow-sm"
+                                    value={form.rate}
+                                    onChange={(e) => {
+                                        const r = e.target.value;
+                                        setForm(f => {
+                                            const next = { ...f, rate: r };
+                                            if (r !== "" && next.quantity !== "") {
+                                                next.amount = (Number(r) * Number(next.quantity)).toFixed(2);
+                                            }
+                                            return next;
+                                        });
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5 ml-1">Total Amount</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-400 transition-all shadow-sm"
+                                    value={form.amount}
+                                    onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))}
                                 />
                             </div>
                         </div>
@@ -349,13 +399,16 @@ const StockInRecords: React.FC = () => {
 
     // ── CSV helpers ──────────────────────────────────────────────────
     const buildStockInCSV = (items: StockInRecord[]) => {
-        const headers = ["Product Name", "Quantity", "Supplier", "Invoice No", "Location", "Date"];
+        const headers = ["Product Name", "Unit", "Quantity", "Supplier", "Ref No", "Location", "Rate", "Amount", "Date"];
         const rows = items.map((item) => [
             item.productId?.name || "",
+            item.productId?.unit || "",
             item.quantity.toString(),
             item.supplier || "",
             item.invoiceNo || "",
             item.location || "",
+            item.rate !== undefined && item.rate !== null ? String(item.rate) : "",
+            item.amount !== undefined && item.amount !== null ? String(item.amount) : "",
             formatDateIST(item.date),
         ]);
         return [
@@ -411,7 +464,7 @@ const StockInRecords: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Stock In Records</h1>
@@ -501,7 +554,7 @@ const StockInRecords: React.FC = () => {
             <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto min-h-[400px]">
                     {dataLoading ? (
-                        <div className="p-6"><TableSkeleton cols={7} rows={8} /></div>
+                        <div className="p-6"><TableSkeleton cols={9} rows={8} /></div>
                     ) : records.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-24 text-center">
                             <div className="w-16 h-16 rounded-2xl bg-neutral-50 flex items-center justify-center mb-4 border border-neutral-100">
@@ -517,8 +570,10 @@ const StockInRecords: React.FC = () => {
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Product</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Quantity</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Supplier</th>
-                                    <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Invoice</th>
+                                    <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Ref No</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Location</th>
+                                    <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Rate</th>
+                                    <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Amount</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100">Date</th>
                                     <th className="py-4 px-6 text-[11px] font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-100 text-right">Actions</th>
                                 </tr>
@@ -549,6 +604,12 @@ const StockInRecords: React.FC = () => {
                                         <td className="py-4 px-6 text-sm text-neutral-600 font-medium">{r.supplier || "—"}</td>
                                         <td className="py-4 px-6 text-xs text-neutral-400 font-bold tabular-nums">{r.invoiceNo || "—"}</td>
                                         <td className="py-4 px-6 text-sm text-neutral-500 font-medium">{r.location || "—"}</td>
+                                        <td className="py-4 px-6 text-xs text-neutral-500 font-semibold tabular-nums">
+                                            {r.rate !== undefined && r.rate !== null ? `₹${r.rate}` : "—"}
+                                        </td>
+                                        <td className="py-4 px-6 text-xs text-neutral-900 font-bold tabular-nums">
+                                            {r.amount !== undefined && r.amount !== null ? `₹${r.amount}` : "—"}
+                                        </td>
                                         <td className="py-4 px-6 text-xs text-neutral-500 font-medium">{formatDate(r.date)}</td>
 
                                         <td className="py-4 px-6">

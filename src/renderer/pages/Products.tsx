@@ -17,10 +17,12 @@ const ProductsList = () => {
 
     const [products, setProducts] = useState<ProductListItem[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
+    const [units, setUnits] = useState<any[]>([]);  // ADD
+
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
-    // Edit Modal State
+    // Edit Modal State     
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<any>(null);
     const [editForm, setEditForm] = useState({
@@ -32,6 +34,7 @@ const ProductsList = () => {
         image: null as any, // Existing path or raw File
         refIds: [] as string[],
         machineName: "",
+        storageLocation: "",
     });
 
     const [editLoading, setEditLoading] = useState(false);
@@ -106,13 +109,16 @@ const ProductsList = () => {
             setLoading(false);
         }
     };
-
     const fetchCategories = async () => {
         try {
-            const res = await api.get("/categories");
-            setCategories(res.data.map((c: any) => c.name));
+            const [catRes, unitRes] = await Promise.all([
+                api.get("/categories"),
+                api.get("/units"),
+            ]);
+            setCategories(catRes.data.map((c: any) => c.name));
+            setUnits(unitRes.data);
         } catch (err) {
-            console.error("Failed to fetch categories:", err);
+            console.error("Failed to fetch categories/units:", err);
         }
     };
 
@@ -128,6 +134,7 @@ const ProductsList = () => {
             image: product.image || null,
             refIds: product.refIds || [],
             machineName: product.machineName || "",
+            storageLocation: (product as any).storageLocation || "",
         });
         setIsEditModalOpen(true);
     };
@@ -171,6 +178,7 @@ const ProductsList = () => {
         formData.append("currentStock", editForm.currentStock.toString());
         formData.append("machineName", editForm.machineName);
         formData.append("refIds", JSON.stringify(editForm.refIds));
+        formData.append("storageLocation", editForm.storageLocation || "");
 
         if (editForm.image instanceof File) {
             formData.append("image", editForm.image);
@@ -266,11 +274,12 @@ const ProductsList = () => {
 
     // ─── CSV helpers ────────────────────────────────────────────────────
     const buildCSV = (items: ProductListItem[]) => {
-        const headers = ["Name", "Category", "Unit", "Current Stock", "Min Stock", "Status", "Ref IDs"];
+        const headers = ["Name", "Category", "Unit", "Storage Location", "Current Stock", "Min Stock", "Status", "Ref IDs"];
         const rows = items.map((p) => [
             p.name,
             p.category || "",
             p.unit,
+            (p as any).storageLocation || "",
             p.currentStock.toString(),
             p.minStock.toString(),
             p.currentStock <= 0 ? "Out of Stock" : p.currentStock <= p.minStock ? "Low Stock" : "In Stock",
@@ -407,8 +416,9 @@ const ProductsList = () => {
                                 className={selectBase}
                             >
                                 <option value="">All Units</option>
-                                <option value="pcs">pcs</option>
-                                <option value="kg">kg</option>
+                                {units.map((u) => (
+                                    <option key={u._id} value={u.name}>{u.name}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -490,6 +500,7 @@ const ProductsList = () => {
                                 <th className="px-4 py-4 text-left">Part Details</th>
                                 <th className="px-4 py-4 text-left">Category</th>
                                 <th className="px-4 py-4 text-left">Unit</th>
+                                <th className="px-4 py-4 text-left">Storage</th>
                                 <th className="px-4 py-4 text-right">Current Stock</th>
                                 <th className="px-4 py-4 text-right">Min Level</th>
                                 {isAdmin && <th className="px-4 py-4 text-center rounded-r-xl">Actions</th>}
@@ -537,6 +548,7 @@ const ProductsList = () => {
                                     </td>
                                     <td className="px-4 py-4 text-xs text-gray-700">{p.category || "—"}</td>
                                     <td className="px-4 py-4 text-xs font-medium text-gray-900">{p.unit}</td>
+                                    <td className="px-4 py-4 text-xs text-gray-700">{(p as any).storageLocation || "—"}</td>
                                     <td className={`px-4 py-4 text-right font-semibold ${p.currentStock <= p.minStock ? "text-red-600" : "text-gray-900"}`}>{p.currentStock}</td>
                                     <td className="px-4 py-4 text-right text-xs text-gray-500 font-medium">{p.minStock}</td>
 
@@ -616,7 +628,20 @@ const ProductsList = () => {
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Unit</label>
-                                    <input value={editForm.unit} onChange={(e) => setEditForm((f) => ({ ...f, unit: e.target.value }))} className={inputBase} />
+                                    <select
+                                        value={editForm.unit}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, unit: e.target.value }))}
+                                        className={selectBase}
+                                    >
+                                        <option value="">Select Unit</option>
+                                        {units.map((u) => (
+                                            <option key={u._id} value={u.name}>{u.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Storage Location</label>
+                                    <input value={editForm.storageLocation} onChange={(e) => setEditForm((f) => ({ ...f, storageLocation: e.target.value }))} className={inputBase} />
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Current Stock</label>

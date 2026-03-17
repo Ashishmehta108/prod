@@ -92,6 +92,7 @@ router.get("/", async (req, res) => {
                 "productId._id": 1,
                 "productId.name": 1,
                 "productId.image": 1,
+                "productId.unit": 1,
               }
             }
           ],
@@ -167,6 +168,67 @@ router.post("/", async (req, res) => {
   }
 });
 
+// POST /api/stock-out/bulk — create multiple stock-out records in one request
+router.post("/bulk", async (req, res) => {
+  try {
+    const { items, department, issuedBy, issuedTo, purpose, date } = req.body as {
+      items: Array<{ productId: string; quantity: number | string }>;
+      department?: string;
+      issuedBy?: string;
+      issuedTo?: string;
+      purpose?: string;
+      date?: string;
+    };
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "items are required" });
+    }
+
+    const normalized = items
+      .map((it) => ({
+        productId: String(it.productId || "").trim(),
+        quantity: Number(it.quantity),
+      }))
+      .filter((it) => it.productId && !isNaN(it.quantity) && it.quantity > 0);
+
+    if (normalized.length === 0) {
+      return res.status(400).json({ error: "At least one valid item is required" });
+    }
+
+    // Merge duplicates to validate stock correctly
+    const qtyByProduct = new Map<string, number>();
+    for (const it of normalized) {
+      qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) || 0) + it.quantity);
+    }
+
+    // Validate stock for each product before creating any docs
+    for (const [productId, totalQty] of qtyByProduct.entries()) {
+      const current = await getCurrentStock(productId);
+      if (current < totalQty) {
+        return res.status(400).json({
+          error: `Insufficient stock for product ${productId}. Current: ${current}, requested: ${totalQty}`,
+        });
+      }
+    }
+
+    const docs = normalized.map((it) => ({
+      productId: it.productId,
+      quantity: it.quantity,
+      department,
+      issuedBy,
+      issuedTo,
+      purpose,
+      date: date ? new Date(date) : undefined,
+    }));
+
+    const created = await StockOut.insertMany(docs, { ordered: true });
+    res.status(201).json({ count: created.length, items: created });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create bulk stock-out records" });
+  }
+});
+
 // GET /api/stock-out/export  — returns ALL records for Excel download (no pagination)
 router.get("/export", async (req, res) => {
   try {
@@ -226,6 +288,7 @@ router.get("/export", async (req, res) => {
           date: 1,
           "productId._id": 1,
           "productId.name": 1,
+          "productId.unit": 1,
         },
       }
     );

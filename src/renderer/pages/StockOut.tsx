@@ -10,7 +10,8 @@ import {
   Building2,
   User,
   Info,
-  Loader2
+  Loader2,
+  Plus
 } from "lucide-react";
 import { toast } from "sonner";
 import EmptyProductsState from "@renderer/components/EmptyState";
@@ -23,9 +24,13 @@ interface ProductOption {
   name: string;
 }
 
-interface StockOutForm {
+interface StockOutItemForm {
   productId: string;
   quantity: string;
+}
+
+interface StockOutForm {
+  items: StockOutItemForm[];
   department: string;
   issuedBy: string;
   issuedTo: string;
@@ -34,10 +39,12 @@ interface StockOutForm {
 }
 
 const stockOutSchema = z.object({
-  productId: z.string().min(1, "Product selection is required"),
-  quantity: z.string().min(1, "Quantity is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "Quantity must be a positive number",
-  }),
+  items: z.array(z.object({
+    productId: z.string().min(1, "Product selection is required"),
+    quantity: z.string().min(1, "Quantity is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+      message: "Quantity must be a positive number",
+    }),
+  })).min(1, "At least one item is required"),
   department: z.string().trim().min(1, "Department is required"),
   issuedBy: z.string().trim().min(1, "Issuer name is required"),
   issuedTo: z.string().trim().min(1, "Recipient name is required"),
@@ -52,15 +59,15 @@ const StockOut: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [selectedProductStock, setSelectedProductStock] = useState<number | null>(null);
-  const [selectedProductUnit, setSelectedProductUnit] = useState<string>("");
+  const [activeRowIndex, setActiveRowIndex] = useState<number>(0);
+  const [stockByProductId, setStockByProductId] = useState<Record<string, number>>({});
+  const [unitByProductId, setUnitByProductId] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Partial<Record<keyof StockOutForm, string>>>({});
 
   const { user } = useAuth();
 
   const [form, setForm] = useState<StockOutForm>({
-    productId: "",
-    quantity: "",
+    items: [{ productId: "", quantity: "" }],
     department: "",
     issuedBy: user?.username || "",
     issuedTo: "",
@@ -94,7 +101,7 @@ const StockOut: React.FC = () => {
     load();
   }, []);
 
-  const updateForm = (key: keyof StockOutForm, value: string) => {
+  const updateForm = (key: keyof Omit<StockOutForm, "items">, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) {
       setErrors((prev) => {
@@ -105,22 +112,26 @@ const StockOut: React.FC = () => {
     }
   };
 
-  const handleProductChange = (value: string) => {
-    updateForm("productId", value);
-    if (!value) {
-      setSelectedProductStock(null);
-      setSelectedProductUnit("");
-      return;
-    }
+  const updateItem = (idx: number, patch: Partial<StockOutItemForm>) => {
+    setForm((f) => {
+      const items = [...f.items];
+      items[idx] = { ...items[idx], ...patch };
+      return { ...f, items };
+    });
+  };
+
+  const handleProductChange = (idx: number, value: string) => {
+    updateItem(idx, { productId: value });
+    if (!value) return;
     api.get(`/products/${value}`)
       .then((res) => {
-        setSelectedProductStock(res.data.currentStock ?? null);
-        setSelectedProductUnit(res.data.unit ?? "");
+        const stock = res.data.currentStock ?? 0;
+        const unit = res.data.unit ?? "";
+        setStockByProductId((m) => ({ ...m, [value]: stock }));
+        setUnitByProductId((m) => ({ ...m, [value]: unit }));
       })
       .catch((err) => {
         console.error("Failed to fetch product stock:", err);
-        setSelectedProductStock(null);
-        setSelectedProductUnit("");
       });
   };
 
@@ -130,47 +141,56 @@ const StockOut: React.FC = () => {
     const result = stockOutSchema.safeParse(form);
 
     if (!result.success) {
-      const fieldErrors: Partial<Record<keyof StockOutForm, string>> = {};
+      const headerErrors: Partial<Record<keyof StockOutForm, string>> = {};
       result.error.issues.forEach((issue) => {
-        const path = issue.path[0] as keyof StockOutForm;
-        if (!fieldErrors[path]) {
-          fieldErrors[path] = issue.message;
+        const path0 = issue.path[0];
+        if (typeof path0 === "string") {
+          const key = path0 as keyof StockOutForm;
+          if (key !== "items" && !headerErrors[key]) {
+            headerErrors[key] = issue.message;
+          }
         }
       });
-      setErrors(fieldErrors);
+      setErrors(headerErrors);
       toast.error("Please fix the validation errors");
       return;
     }
 
-    if (selectedProductStock !== null && Number(form.quantity) > selectedProductStock) {
-      setErrors(prev => ({ ...prev, quantity: `Insufficient stock. Only ${selectedProductStock} available.` }));
-      toast.error(`Insufficient stock. Only ${selectedProductStock} available.`);
-      return;
+    // Quick client-side stock check (best-effort)
+    for (const it of form.items) {
+      if (!it.productId) continue;
+      const stock = stockByProductId[it.productId];
+      if (stock !== undefined && Number(it.quantity) > stock) {
+        toast.error(`Insufficient stock for selected item. Only ${stock} available.`);
+        return;
+      }
     }
 
     setLoading(true);
     setErrors({});
 
-    const stockOutPromise = api.post("/stock-out", {
-      ...form,
+    const stockOutPromise = api.post("/stock-out/bulk", {
+      department: form.department,
+      issuedBy: form.issuedBy,
+      issuedTo: form.issuedTo,
+      purpose: form.purpose,
       date: inputDateToISOIST(form.date),
-      quantity: Number(form.quantity)
+      items: form.items.map((it) => ({ productId: it.productId, quantity: Number(it.quantity) })),
     });
 
     toast.promise(stockOutPromise, {
       loading: 'Recording stock out...',
       success: () => {
         setForm({
-          productId: "",
-          quantity: "",
+          items: [{ productId: "", quantity: "" }],
           department: "",
           issuedBy: user?.username || "",
           issuedTo: "",
           purpose: "",
           date: getTodayISTForInput(),
         });
-        setSelectedProductStock(null);
-        setSelectedProductUnit("");
+        setStockByProductId({});
+        setUnitByProductId({});
         load();
         return 'Stock out recorded successfully';
       },
@@ -189,8 +209,8 @@ const StockOut: React.FC = () => {
     return <EmptyProductsState />
   }
 
-  const isOutOfStock = selectedProductStock !== null && selectedProductStock <= 0;
-  const hasInsufficientStock = selectedProductStock !== null && Number(form.quantity) > selectedProductStock && form.quantity !== "";
+  const addRow = () => setForm((f) => ({ ...f, items: [...f.items, { productId: "", quantity: "" }] }));
+  const removeRow = (idx: number) => setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -224,95 +244,98 @@ const StockOut: React.FC = () => {
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-6">
-            {/* Product & Quantity Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Product Selection */}
-              <div className="space-y-2">
+            {/* Items Section (multiple rows) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 uppercase tracking-wider">
                   <Package size={13} className="text-neutral-500" />
-                  Product <span className="text-red-500">*</span>
+                  Items <span className="text-red-500">*</span>
                 </label>
-                <div className="flex">
-                  <div className="relative flex-1">
-                    <select
-                      className={`w-full h-10 appearance-none bg-neutral-50 border-y border-l ${errors.productId ? 'border-red-500' : 'border-neutral-300'} px-3 pr-8 text-sm text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
-                      value={form.productId}
-                      onChange={(e) => handleProductChange(e.target.value)}
-                    >
-                      <option value="">Select product</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name.length > 45 ? p.name.substring(0, 45) + '…' : p.name}
-                        </option>
-                      ))}
-                    </select>
-
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsSearchModalOpen(true)}
-                    className={`h-10 w-10 border ${errors.productId ? 'border-red-500' : 'border-neutral-300'} bg-white hover:bg-neutral-50 hover:border-neutral-400 transition-colors flex items-center justify-center active:scale-98 flex-shrink-0`}
-                  >
-                    <SearchCode size={18} className="text-neutral-600" />
-                  </button>
-                </div>
-                {errors.productId && <p className="text-[10px] text-red-500 font-medium ml-1">{errors.productId}</p>}
-
-                {selectedProductStock !== null && form.productId && (
-                  <div className={`px-3 py-2 border flex items-center justify-between text-xs ${isOutOfStock
-                    ? 'bg-neutral-100 border-neutral-400'
-                    : 'bg-neutral-100 border-neutral-300'
-                    }`}>
-                    <span className="text-neutral-600 uppercase tracking-wider font-medium">
-                      Stock Available
-                    </span>
-                    <span className={`font-semibold ${isOutOfStock ? 'text-neutral-900' : 'text-neutral-900'
-                      }`}>
-                      {selectedProductStock} {selectedProductUnit}
-                    </span>
-                  </div>
-                )}
-                {isOutOfStock && (
-                  <div className="px-3 py-2 bg-neutral-800 border border-neutral-900 text-xs text-white">
-                    <span className="uppercase tracking-wider font-medium">
-                      Out of stock - cannot issue
-                    </span>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={addRow}
+                  className="h-9 px-3 border border-neutral-300 bg-white hover:bg-neutral-50 text-xs font-semibold text-neutral-700 flex items-center gap-2"
+                >
+                  <Plus size={14} />
+                  Add Row
+                </button>
               </div>
 
-              {/* Quantity */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                  <ArrowUp size={13} className="text-neutral-500" />
-                  Quantity to Issue <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  className={`w-full h-10 bg-neutral-50 border ${errors.quantity ? 'border-red-500' : 'border-neutral-300'} px-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
-                  placeholder="Enter quantity"
-                  value={form.quantity}
-                  onChange={(e) => updateForm("quantity", e.target.value)}
-                />
-                {errors.quantity && (
-                  <div className="px-3 py-2 bg-neutral-800 border border-neutral-900 text-xs text-white">
-                    <span className="uppercase tracking-wider font-medium">
-                      {errors.quantity}
-                    </span>
-                  </div>
-                )}
-                {hasInsufficientStock && (
-                  <div className="px-3 py-2 bg-neutral-800 border border-neutral-900 text-xs text-white">
-                    <span className="uppercase tracking-wider font-medium">
-                      Insufficient stock - only {selectedProductStock} available
-                    </span>
-                  </div>
-                )}
-                {!hasInsufficientStock && (
-                  <p className="text-xs text-neutral-500">
-                    Stock levels will decrease by this amount
-                  </p>
-                )}
+              <div className="space-y-3">
+                {form.items.map((it, idx) => {
+                  const stock = it.productId ? stockByProductId[it.productId] : undefined;
+                  const unit = it.productId ? unitByProductId[it.productId] : "";
+                  const isRowInsufficient = stock !== undefined && it.quantity !== "" && Number(it.quantity) > stock;
+                  return (
+                    <div key={idx} className="grid grid-cols-1 lg:grid-cols-12 gap-3 bg-neutral-50 border border-neutral-200 p-3">
+                      <div className="lg:col-span-7 space-y-1">
+                        <div className="flex">
+                          <div className="relative flex-1">
+                            <select
+                              className="w-full h-10 appearance-none bg-white border border-neutral-300 px-3 pr-8 text-sm text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors"
+                              value={it.productId}
+                              onChange={(e) => handleProductChange(idx, e.target.value)}
+                            >
+                              <option value="">Select product</option>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name.length > 45 ? p.name.substring(0, 45) + '…' : p.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setActiveRowIndex(idx); setIsSearchModalOpen(true); }}
+                            className="h-10 w-10 border border-neutral-300 bg-white hover:bg-neutral-50 hover:border-neutral-400 transition-colors flex items-center justify-center active:scale-98 flex-shrink-0"
+                            title="Search product"
+                          >
+                            <SearchCode size={18} className="text-neutral-600" />
+                          </button>
+                        </div>
+                        {stock !== undefined && it.productId && (
+                          <div className="px-3 py-2 bg-white border border-neutral-300 flex items-center justify-between text-xs">
+                            <span className="text-neutral-600 uppercase tracking-wider font-medium">
+                              Stock Available
+                            </span>
+                            <span className="text-neutral-900 font-semibold">
+                              {stock} {unit}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="lg:col-span-4 space-y-1">
+                        <input
+                          type="number"
+                          className={`w-full h-10 bg-white border ${isRowInsufficient ? 'border-red-500' : 'border-neutral-300'} px-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-colors`}
+                          placeholder="Quantity"
+                          value={it.quantity}
+                          onChange={(e) => updateItem(idx, { quantity: e.target.value })}
+                        />
+                        {isRowInsufficient && (
+                          <div className="px-3 py-2 bg-neutral-800 border border-neutral-900 text-xs text-white">
+                            <span className="uppercase tracking-wider font-medium">
+                              Insufficient stock - only {stock} available
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="lg:col-span-1 flex items-start justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(idx)}
+                          disabled={form.items.length === 1}
+                          className="h-10 w-10 border border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          title="Remove row"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -423,7 +446,7 @@ const StockOut: React.FC = () => {
           <div className="mt-8 pt-6 border-t border-neutral-200">
             <button
               type="submit"
-              disabled={loading || isOutOfStock}
+              disabled={loading}
               className="relative w-full h-12 bg-neutral-900 text-white hover:bg-neutral-800 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 overflow-hidden"
             >
               <Ripple color="rgba(255, 255, 255, 0.15)" />
@@ -445,7 +468,7 @@ const StockOut: React.FC = () => {
       <ProductSearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
-        onSelect={(id) => handleProductChange(id)}
+        onSelect={(id) => handleProductChange(activeRowIndex, id)}
       />
     </div >
   );

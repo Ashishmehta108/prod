@@ -28,6 +28,7 @@ import StockSummary from "./pages/StockSummary";
 import StockInRecords from "./pages/StockInRecords";
 import StockOutRecords from "./pages/StockOutRecords";
 import Categories from "./pages/Categories";
+import Units from "./pages/Units";
 import { Toaster } from "sonner";
 
 const AppContent: React.FC = () => {
@@ -44,6 +45,7 @@ const AppContent: React.FC = () => {
     if (pathname === "/products") return "products-all";
     if (pathname === "/products/add") return "products-add";
     if (pathname === "/products/categories") return "products-categories";
+    if (pathname === "/products/units") return "products-units";
     if (pathname === "/stock-in") return "stock-in";
     if (pathname === "/stock-out") return "stock-out";
     if (pathname === "/weight") return "weight";
@@ -66,6 +68,7 @@ const AppContent: React.FC = () => {
       "products-all": "/products",
       "products-add": "/products/add",
       "products-categories": "/products/categories",
+      "products-units": "/products/units",
       "stock-in": "/stock-in",
       "stock-out": "/stock-out",
       weight: "/weight",
@@ -119,6 +122,7 @@ const AppContent: React.FC = () => {
           <Route path="/stock-in-records" element={<StockInRecords />} />
           <Route path="/stock-out-records" element={<StockOutRecords />} />
           <Route path="/products/categories" element={<Categories />} />
+          <Route path="/products/units" element={<Units />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

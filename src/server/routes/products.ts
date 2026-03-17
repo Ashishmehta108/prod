@@ -25,7 +25,40 @@ router.get("/categories", auth, async (req, res) => {
 // GET /api/products/low-stock/export - returns ALL low/out-of-stock products (no pagination cap) for Excel export
 router.get("/low-stock/export", auth, async (req, res) => {
   try {
+    const {
+      search,
+      category,
+      unit,
+      machineName,
+      refIdPrefix,
+      createdFrom,
+      createdTo,
+    } = req.query;
+
+    const baseMatch: any = {};
+    if (category) baseMatch.category = category as string;
+    if (unit) baseMatch.unit = unit as string;
+    if (machineName) baseMatch.machineName = machineName as string;
+    if (createdFrom || createdTo) {
+      baseMatch.createdAt = {};
+      if (createdFrom) baseMatch.createdAt.$gte = new Date(createdFrom as string);
+      if (createdTo) baseMatch.createdAt.$lte = new Date(createdTo as string);
+    }
+    if (search) {
+      const regex = new RegExp(search as string, "i");
+      baseMatch.$or = [
+        { name: regex },
+        { category: regex },
+        { machineName: regex },
+        { refIds: { $elemMatch: { $regex: `^${search}`, $options: "i" } } },
+      ];
+    }
+    if (refIdPrefix) {
+      baseMatch.refIds = { $elemMatch: { $regex: `^${refIdPrefix}`, $options: "i" } };
+    }
+
     const pipeline: any[] = [
+      { $match: baseMatch },
       // Only include products with a real minimum threshold and strictly below it
       { $match: { $expr: { $and: [{ $gt: ["$minStock", 0] }, { $lt: ["$stockQuantity", "$minStock"] }] } } },
       { $sort: { stockQuantity: 1 } },
@@ -38,6 +71,7 @@ router.get("/low-stock/export", auth, async (req, res) => {
           image: 1,
           refIds: 1,
           machineName: 1,
+          storageLocation: 1,
           minStock: 1,
           currentStock: "$stockQuantity",
         },
@@ -155,6 +189,7 @@ router.get("/", auth, async (req, res) => {
                 image: 1,
                 refIds: 1,
                 machineName: 1,
+                storageLocation: 1,
                 minStock: 1,
                 currentStock: "$stockQuantity",
               },
@@ -194,7 +229,7 @@ router.get("/", auth, async (req, res) => {
 
 router.post("/", auth, adminOnly, uploadSingleImage, async (req: any, res) => {
   try {
-    const { name, category, unit, minStock, refIds, machineName } = req.body;
+    const { name, category, unit, minStock, refIds, machineName, storageLocation } = req.body;
     let image = req.body.image;
 
     if (req.file) {
@@ -223,6 +258,7 @@ router.post("/", auth, adminOnly, uploadSingleImage, async (req: any, res) => {
       image,
       refIds: processedRefIds || [],
       machineName,
+      storageLocation,
     });
 
     res.status(201).json(product);
@@ -278,7 +314,7 @@ router.get("/export", auth, async (req, res) => {
       {
         $project: {
           id: "$_id", name: 1, category: 1, unit: 1, image: 1,
-          refIds: 1, machineName: 1, minStock: 1, currentStock: "$stockQuantity",
+          refIds: 1, machineName: 1, storageLocation: 1, minStock: 1, currentStock: "$stockQuantity",
         },
       }
     );
@@ -360,6 +396,7 @@ router.get("/:id", auth, async (req, res) => {
       image: product.image,
       refIds: product.refIds || [],
       machineName: product.machineName,
+      storageLocation: (product as any).storageLocation ?? null,
       currentStock: product.stockQuantity,
       totalIn: totalIn[0]?.total || 0,
       totalOut: totalOut[0]?.total || 0
@@ -606,7 +643,7 @@ router.put("/:id", auth, adminOnly, uploadSingleImage, async (req: any, res) => 
       return res.status(400).json({ error: "Invalid product ID" });
     }
 
-    const { name, category, unit, minStock, refIds, machineName, currentStock } = req.body;
+    const { name, category, unit, minStock, refIds, machineName, currentStock, storageLocation } = req.body;
     let image = req.body.image;
 
     if (req.file) {
@@ -633,6 +670,7 @@ router.put("/:id", auth, adminOnly, uploadSingleImage, async (req: any, res) => 
         image,
         refIds: processedRefIds,
         machineName,
+        storageLocation,
       },
       { new: true }
     );

@@ -8,6 +8,7 @@ export interface ProductListItem {
   image?: string | null;
   refIds: string[];
   machineName: string;
+  storageLocation?: string | null;
 }
 
 export interface ProductForm {
@@ -18,4 +19,5 @@ export interface ProductForm {
   image?: string | null;
   refIds: string[];
   machineName: string;
+  storageLocation?: string | null;
 }

@@ -17,6 +17,7 @@ import weightRoutes from "./routes/weight";
 import tallyRoutes from "./routes/tally";
 import uploadRoutes from "./routes/upload";
 import categoryRoutes from "./routes/categories";
+import unitRoutes from "./routes/units";
 
 import { createAdmin as createAdminScript } from "./scripts/createAdmin";
 
@@ -161,6 +162,7 @@ app.use("/api/tally", tallyRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/weight", weightRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/units", unitRoutes);
 console.log("[Server] ✓ API routes registered");
 
 // 404 handler for undefined routes

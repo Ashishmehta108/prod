@@ -9,6 +9,7 @@ export interface IProduct extends Document {
   image?: string;
   refIds: string[];        // Added: Array of reference IDs
   machineName?: string;    // Added: Machine name field
+  storageLocation?: string;
 }
 
 const ProductSchema = new Schema<IProduct>(
@@ -28,6 +29,10 @@ const ProductSchema = new Schema<IProduct>(
       index: true,           // Index for faster lookups
     },
     machineName: {
+      type: String,
+      default: null,
+    },
+    storageLocation: {
       type: String,
       default: null,
     },
